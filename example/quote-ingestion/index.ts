@@ -16,6 +16,18 @@ import { employmentStatus, presenceWithSentinels, retroactiveDateRDI } from './c
 import { createTestCases } from './testCases';
 import type { QuoteInput, QuoteOutput } from './types';
 
+/**
+ * Shape of the API response from the quote extraction workflow.
+ */
+interface ApiResponse {
+  data: {
+    testCases: Array<{
+      results: QuoteOutput;
+      additional_context: unknown;
+    }>;
+  };
+}
+
 function formatValue(value: unknown): string {
   if (value === undefined) return '(undefined)';
   if (value === null) return '(null)';
@@ -28,17 +40,47 @@ function formatValue(value: unknown): string {
 }
 /**
  * HTTP endpoint executor that calls the quote extraction workflow API.
+ * Note: mapResponse receives 'any' so you can type it directly - no casting needed.
  */
 const quoteExtractor = didactic.endpoint<QuoteInput, QuoteOutput>(
   'http://localhost:3000/api/v1/test-quote-workflow',
   {
     headers: {
-      'x-api-key': process.env.API_KEY ?? '', 
+      'x-api-key': process.env.API_KEY ?? '',
     },
-    mapResponse: (response: any) => response.data.testCases[0].results,
-    timeout: 300000, // 2 minutes for LLM workflows
+    mapResponse: (response: ApiResponse) => response.data.testCases[0].results,
+    mapAdditionalContext: (response: ApiResponse) => response.data.testCases[0].additional_context,
+    timeout: 300000, // 5 minutes for LLM workflows
   }
 );
+
+/**
+ * Function executor that wraps the same API call with fully typed code.
+ * This demonstrates the clean type story:
+ * - TInput (QuoteInput) is inferred from the fn parameter
+ * - TOutput (QuoteOutput) is inferred from the fn return type
+ * - No 'unknown' anywhere - everything is typed
+ */
+const quoteExtractorFn = didactic.fn({
+  fn: async (input: QuoteInput): Promise<QuoteOutput> => {
+    const response = await fetch('http://localhost:3000/api/v1/test-quote-workflow', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.API_KEY ?? '',
+      },
+      body: JSON.stringify(input),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    }
+
+    const data: ApiResponse = await response.json();
+    return data.data.testCases[0].results;
+  },
+  mapAdditionalContext: (output) => output, // fully typed - output is QuoteOutput
+});
 
 async function main() {
   console.log('Running quote ingestion evaluation...\n');
@@ -77,6 +119,7 @@ async function main() {
       status: exact,
     },
     perTestThreshold: 0.95,
+    unorderedList: true,
   });
 
   const sep = '═'.repeat(60);
@@ -93,7 +136,7 @@ async function main() {
     console.log(sep);
 
     const status = testCase.passed ? '✓' : '✗';
-    const emailId = (testCase.input as QuoteInput).emailId;
+    const emailId = testCase.input.emailId;  // No cast needed - input is typed as QuoteInput
     const pct = (testCase.passRate * 100).toFixed(0);
 
     console.log(`${status} ${emailId}  [${testCase.passedFields}/${testCase.totalFields} fields, ${pct}%]`);

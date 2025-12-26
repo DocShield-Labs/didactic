@@ -1,14 +1,10 @@
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
-
-// Construct test case with input and expected for each one
-interface TestCase {
-    input: { emailId: string };
-    expected: unknown;
-}
+import type { TestCase } from '../../src/index';
+import type { QuoteInput, QuoteOutput } from './types';
 
 export const createTestCases = async () => {
-    const testCases: TestCase[] = [];
+    const testCases: TestCase<QuoteInput, QuoteOutput>[] = [];
 
     const supabase = createClient(
       process.env.SUPABASE_URL!,

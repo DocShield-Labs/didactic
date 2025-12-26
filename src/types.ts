@@ -27,6 +27,12 @@ export type Comparator<T = unknown> = (
   context?: ComparatorContext
 ) => ComparatorResult;
 
+/**
+ * A map of field names to comparators.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ComparatorMap = Record<string, Comparator<any>>;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // EXECUTORS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -36,6 +42,7 @@ export type Comparator<T = unknown> = (
  */
 export interface ExecutorResult<TOutput = unknown> {
   output: TOutput;
+  additionalContext?: unknown;
 }
 
 /**
@@ -53,23 +60,29 @@ export type Executor<TInput = unknown, TOutput = unknown> = (
 /**
  * A single test case pairing input with expected output.
  */
-export interface TestCase<TInput = unknown> {
+export interface TestCase<TInput = unknown, TOutput = unknown> {
   input: TInput;
-  expected: unknown;
+  expected: TOutput;
+}
+
+/**
+ * Base eval configuration shared by both modes.
+ */
+interface BaseEvalConfig<TInput = unknown, TOutput = unknown> {
+  systemPrompt?: string;
+  executor: Executor<TInput, TOutput>;
+  testCases: TestCase<TInput, TOutput>[];
+  perTestThreshold?: number;  // Default: 1.0 (all fields must pass)
+  unorderedList?: boolean;    // Default: false (ordered array comparison)
 }
 
 /**
  * Main eval configuration.
+ * Either `comparators` (field mapping) OR `comparator` (whole-object) must be provided.
  */
-export interface EvalConfig<TInput = unknown, TOutput = unknown> {
-  systemPrompt?: string;
-  executor: Executor<TInput, TOutput>;
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  comparators: Record<string, Comparator<any>> | Comparator<any>;
-  testCases: TestCase<TInput>[];
-  perTestThreshold?: number;  // Default: 1.0 (all fields must pass)
-}
+export type EvalConfig<TInput = unknown, TOutput = unknown> =
+  | (BaseEvalConfig<TInput, TOutput> & { comparators: ComparatorMap; comparator?: never })
+  | (BaseEvalConfig<TInput, TOutput> & { comparator: Comparator<TOutput>; comparators?: never });
 
 /**
  * Result for a single field comparison.
@@ -83,10 +96,11 @@ export interface FieldResult {
 /**
  * Result for a single test case.
  */
-export interface TestCaseResult<TInput = unknown> {
+export interface TestCaseResult<TInput = unknown, TOutput = unknown> {
   input: TInput;
-  expected: unknown;
-  actual?: unknown;
+  expected: TOutput;
+  actual?: TOutput;
+  additionalContext?: unknown;
   passed: boolean;
   fields: Record<string, FieldResult>;
   error?: string;
@@ -98,9 +112,9 @@ export interface TestCaseResult<TInput = unknown> {
 /**
  * Eval result.
  */
-export interface EvalResult<TInput = unknown> {
+export interface EvalResult<TInput = unknown, TOutput = unknown> {
   systemPrompt?: string;
-  testCases: TestCaseResult<TInput>[];
+  testCases: TestCaseResult<TInput, TOutput>[];
   passed: number;
   total: number;
   successRate: number;
@@ -134,19 +148,19 @@ export interface OptimizeOptions {
 /**
  * Result for a single optimization iteration.
  */
-export interface IterationResult {
+export interface IterationResult<TInput = unknown, TOutput = unknown> {
   iteration: number;
   systemPrompt: string;
   passed: number;
   total: number;
-  testCases: TestCaseResult[];
+  testCases: TestCaseResult<TInput, TOutput>[];
 }
 
 /**
  * Final result from optimization.
  */
-export interface OptimizeResult {
+export interface OptimizeResult<TInput = unknown, TOutput = unknown> {
   success: boolean;
   finalPrompt: string;
-  iterations: IterationResult[];
+  iterations: IterationResult<TInput, TOutput>[];
 }

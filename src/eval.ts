@@ -2,7 +2,7 @@ import type {
   EvalConfig,
   EvalResult,
   FieldResult,
-  Comparator,
+  ComparatorMap,
 } from './types.js';
 import { matchArrays } from './matching.js';
 import { exact } from './comparators.js';
@@ -12,9 +12,11 @@ import { exact } from './comparators.js';
  */
 export async function evaluate<TInput, TOutput>(
   config: EvalConfig<TInput, TOutput>
-): Promise<EvalResult<TInput>> {
+): Promise<EvalResult<TInput, TOutput>> {
 
-  const { testCases, systemPrompt, executor, comparators } = config;
+  const { testCases, systemPrompt, executor } = config;
+  const comparators = 'comparators' in config ? config.comparators : undefined;
+  const comparator = 'comparator' in config ? config.comparator : undefined;
 
   if (testCases.length === 0) {
     throw new Error('testCases array cannot be empty');
@@ -25,7 +27,23 @@ export async function evaluate<TInput, TOutput>(
     testCases.map(async ({ input, expected }) => {
       try {
         const result = await executor(input, systemPrompt);
-        const fields = compareFields(expected, result.output, comparators);
+
+        let fields: Record<string, FieldResult>;
+        if (comparator) {
+          // Whole-object comparison mode
+          const compResult = comparator(expected, result.output, { expectedParent: null, actualParent: null });
+          fields = {
+            '': {
+              passed: compResult.passed,
+              expected,
+              actual: result.output,
+            }
+          };
+        } else {
+          // Field-level comparison mode
+          const unorderedList = config.unorderedList ?? false;
+          fields = compareFields(expected, result.output, comparators!, '', null, null, unorderedList);
+        }
 
         const passedFields = Object.values(fields).filter((f) => f.passed).length;
         const totalFields = Object.values(fields).length;
@@ -37,6 +55,7 @@ export async function evaluate<TInput, TOutput>(
           input,
           expected,
           actual: result.output,
+          additionalContext: result.additionalContext,
           passed,
           fields,
           passedFields,
@@ -91,83 +110,82 @@ export async function evaluate<TInput, TOutput>(
 }
 
 /**
- * Recursively compare expected vs actual, building a flat map of field results.
- *
- * Key format:
- * - Objects: 'field', 'nested.field'
- * - Arrays: '[0]', '[0].field', 'arr[0].nested'
- * - Primitives at root: ''
+ * Recursively compare expected vs actual, returning field-level results.
+ * Path patterns: 'carrier', 'quote.premium', '[0]', 'quotes[0].carrier'
  */
 function compareFields(
   expected: unknown,
   actual: unknown,
-  comparators: Record<string, Comparator> | Comparator,
-  prefix = '',
+  comparators: ComparatorMap,
+  path = '',
   expectedParent: unknown = null,
-  actualParent: unknown = null
+  actualParent: unknown = null,
+  unorderedList = false
 ): Record<string, FieldResult> {
+  const results: Record<string, FieldResult> = {};
 
-  // Handle array of outputs
+  // ─── ARRAYS ─────────────────────────────────────────────────────────────────
   if (Array.isArray(expected)) {
-
-    // Exit early if actual is not an array
     if (!Array.isArray(actual)) {
-      return {
-        [prefix || 'value']: { passed: false, expected, actual }
-      };
+      return { [path || 'value']: { passed: false, expected, actual } };
     }
-    if (expected.length === 0 && actual.length === 0) {
+    if (expected.length === 0) {
       return {};
     }
 
-    // Use Hungarian algorithm to find optimal pairing between expected and actual elements
-    const results: Record<string, FieldResult> = {};
-    const { assignments, unmatchedExpected } = matchArrays(expected, actual, comparators);
+    // Get matched pairs: [expectedIdx, actualIdx]
+    let matchedPairs: [number, number][];
+    if (unorderedList) {
+      matchedPairs = matchArrays(expected, actual, comparators).assignments;
+    } else {
+      matchedPairs = [];
+      for (let i = 0; i < expected.length && i < actual.length; i++) {
+        matchedPairs.push([i, i]);
+      }
+    }
 
-    // For each matched pair, compare the expected and actual items
-    for (const [expIdx, actIdx] of assignments) {
-      const itemPrefix = prefix ? `${prefix}[${expIdx}]` : `[${expIdx}]`;
+    const matchedIndices = new Set(matchedPairs.map(([i]) => i));
 
-      // Recursively compare each element
+    // Compare matched pairs
+    for (const [expIdx, actIdx] of matchedPairs) {
+      const itemPath = path ? `${path}[${expIdx}]` : `[${expIdx}]`;
       Object.assign(results, compareFields(
         expected[expIdx],
         actual[actIdx],
         comparators,
-        itemPrefix,
-        expectedParent, // expected parent item (for cross-field access)
-        actualParent, // actual parent item (for cross-field access)
+        itemPath,
+        expectedParent,
+        actualParent,
+        unorderedList
       ));
     }
 
-    // Mark unmatched expected items as failed (only for fields with comparators)
-    for (const idx of unmatchedExpected) {
-      const itemPrefix = prefix ? `${prefix}[${idx}]` : `[${idx}]`;
-      const exp = expected[idx];
+    // Report unmatched expected items as failures
+    for (let i = 0; i < expected.length; i++) {
+      if (matchedIndices.has(i)) {
+        continue;
+      }
 
-      if (isObject(exp)) {
-        if (typeof comparators !== 'function') {
-          for (const field of Object.keys(exp)) {
-            if (comparators[field]) {  // Only include fields with comparators
-              results[`${itemPrefix}.${field}`] = {
-                passed: false,
-                expected: exp[field],
-                actual: undefined,
-              };
-            }
+      const itemPath = path ? `${path}[${i}]` : `[${i}]`;
+      const item = expected[i];
+
+      if (isObject(item)) {
+        // Report each field that has a comparator
+        for (const field of Object.keys(item)) {
+          if (field in comparators) {
+            results[`${itemPath}.${field}`] = {
+              passed: false,
+              expected: item[field],
+              actual: undefined,
+            };
           }
         }
       } else {
-        // For primitive arrays: fail if function comparator, named comparator exists, or root level
-        const arrayName = prefix.replace(/\[\d+\]$/, '').split('.').pop() || prefix;
-        const shouldFail = typeof comparators === 'function'
-          || (typeof comparators !== 'function' && comparators[arrayName])
-          || arrayName === '';
-        if (shouldFail) {
-          results[itemPrefix] = {
-            passed: false,
-            expected: exp,
-            actual: undefined,
-          };
+        // For primitives, check if the array name has a comparator
+        const arrayName = path.replace(/\[\d+\]$/, '').split('.').pop() || '';
+        const hasComparator = arrayName in comparators || arrayName === '';
+        if (hasComparator) {
+          results[itemPath] = { passed: false, expected: item, actual: undefined };
         }
       }
     }
@@ -175,46 +193,39 @@ function compareFields(
     return results;
   }
 
-  // Objects: recurse for each field
+  // ─── OBJECTS ────────────────────────────────────────────────────────────────
   if (isObject(expected)) {
     if (!isObject(actual)) {
-      return {
-        [prefix || 'value']: { passed: false, expected, actual }
-      };
+      return { [path || 'value']: { passed: false, expected, actual } };
     }
 
-    const results: Record<string, FieldResult> = {};
     for (const [field, expValue] of Object.entries(expected)) {
-      const fieldPrefix = prefix ? `${prefix}.${field}` : field;
+      const fieldPath = path ? `${path}.${field}` : field;
       Object.assign(results, compareFields(
         expValue,
         actual[field],
         comparators,
-        fieldPrefix,
+        fieldPath,
         expected,
-        actual
+        actual,
+        unorderedList
       ));
     }
+
     return results;
   }
 
-  // Primitives: use function comparator, field comparator, or default exact for root
-  const lastSegment = prefix.split('.').pop() || prefix || '';
+  // ─── PRIMITIVES ─────────────────────────────────────────────────────────────
+  const lastSegment = path.split('.').pop() || path || '';
   const fieldName = lastSegment.replace(/\[\d+\]$/, '');
-  const comparator = typeof comparators === 'function'
-    ? comparators
-    : (comparators[fieldName] ?? (fieldName === '' ? exact : undefined));
+  const comparator = comparators[fieldName] ?? (fieldName === '' ? exact : undefined);
+
   if (!comparator) {
-    return {};  // Skip fields without explicit comparators
+    return {};
   }
+
   const result = comparator(expected, actual, { expectedParent, actualParent });
-  return {
-    [prefix || '']: {
-      ...result,
-      expected,
-      actual
-    }
-  };
+  return { [path || '']: { ...result, expected, actual } };
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

@@ -4,6 +4,7 @@ export type {
   Comparator,
   ComparatorContext,
   ComparatorResult,
+  ComparatorMap,
   // Executor types
   Executor,
   ExecutorResult,
@@ -68,7 +69,7 @@ export const didactic = {
   /**
    * Run an eval with the given configuration.
    */
-  eval<TInput, TOutput>(config: EvalConfig<TInput, TOutput>): Promise<EvalResult<TInput>> {
+  eval<TInput, TOutput>(config: EvalConfig<TInput, TOutput>): Promise<EvalResult<TInput, TOutput>> {
     return evaluate(config);
   },
 

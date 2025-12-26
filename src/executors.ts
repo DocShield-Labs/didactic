@@ -7,7 +7,8 @@ export interface EndpointConfig<TOutput = unknown> {
   method?: 'POST' | 'GET';
   headers?: Record<string, string>;
   mapRequest?: (input: unknown, systemPrompt?: string) => unknown;
-  mapResponse?: (response: unknown) => TOutput;
+  mapResponse?: (response: any) => TOutput;
+  mapAdditionalContext?: (response: any) => unknown;
   timeout?: number;
 }
 
@@ -16,6 +17,7 @@ export interface EndpointConfig<TOutput = unknown> {
  */
 export interface FnConfig<TInput, TOutput> {
   fn: (input: TInput, systemPrompt?: string) => Promise<TOutput>;
+  mapAdditionalContext?: (result: TOutput) => unknown;
 }
 
 /**
@@ -37,6 +39,7 @@ export function endpoint<TInput = unknown, TOutput = unknown>(
     headers = {},
     mapRequest,
     mapResponse,
+    mapAdditionalContext,
     timeout = 30000,
   } = config;
 
@@ -65,14 +68,16 @@ export function endpoint<TInput = unknown, TOutput = unknown>(
       }
 
       const data = await response.json();
+      const additionalContext = mapAdditionalContext?.(data);
 
       if (mapResponse) {
-        return { output: mapResponse(data) };
+        return { output: mapResponse(data), additionalContext };
       }
 
       // Default response mapping assumes { output } structure
       return {
         output: (data.output ?? data) as TOutput,
+        additionalContext,
       };
     } catch (error) {
       clearTimeout(timeoutId);
@@ -99,8 +104,8 @@ export function fn<TInput, TOutput extends object>(
 ): Executor<TInput, TOutput> {
   return async (input: TInput, systemPrompt?: string): Promise<ExecutorResult<TOutput>> => {
     const output = await config.fn(input, systemPrompt);
-
-    return { output };
+    const additionalContext = config.mapAdditionalContext?.(output);
+    return { output, additionalContext };
   };
 }
 

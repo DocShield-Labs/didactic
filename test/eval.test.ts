@@ -184,7 +184,33 @@ describe('evaluate', () => {
     interface Quote { carrier: string; premium: number }
     type QuotesOutput = { quotes: Quote[] };
 
-    it('matches arrays regardless of order', async () => {
+    it('matches arrays regardless of order when unorderedList is true', async () => {
+      const result = await evaluate<Input, QuotesOutput>({
+        executor: async () => ({
+          output: {
+            quotes: [
+              { carrier: 'Beta', premium: 200 },
+              { carrier: 'Acme', premium: 100 },
+            ],
+          },
+        }),
+        comparators: { carrier: exact, premium: exact },
+        unorderedList: true,
+        testCases: [{
+          input: { id: 1 },
+          expected: {
+            quotes: [
+              { carrier: 'Acme', premium: 100 },
+              { carrier: 'Beta', premium: 200 },
+            ],
+          },
+        }],
+      });
+
+      expect(result.testCases[0].passed).toBe(true);
+    });
+
+    it('fails when arrays are reordered and unorderedList is false (default)', async () => {
       const result = await evaluate<Input, QuotesOutput>({
         executor: async () => ({
           output: {
@@ -206,7 +232,7 @@ describe('evaluate', () => {
         }],
       });
 
-      expect(result.testCases[0].passed).toBe(true);
+      expect(result.testCases[0].passed).toBe(false);
     });
 
     it('applies field comparators to array elements', async () => {
@@ -435,10 +461,19 @@ describe('evaluate', () => {
       expect(result.testCases[0].fields['[2]'].actual).toBeUndefined();
     });
 
-    it('uses function comparator for primitive arrays', async () => {
+    it('uses comparator for whole-object comparison', async () => {
       const result = await evaluate<Input, number[]>({
         executor: async () => ({ output: [105, 210] }),
-        comparators: within({ tolerance: 0.1 }),
+        comparator: (expected, actual) => {
+          // Check each element is within 10%
+          if (!Array.isArray(expected) || !Array.isArray(actual)) return { passed: false };
+          if (expected.length !== actual.length) return { passed: false };
+          for (let i = 0; i < expected.length; i++) {
+            const diff = Math.abs(actual[i] - expected[i]) / expected[i];
+            if (diff > 0.1) return { passed: false };
+          }
+          return { passed: true };
+        },
         testCases: [{ input: { id: 1 }, expected: [100, 200] }],
       });
 
@@ -514,6 +549,115 @@ describe('evaluate', () => {
       const fieldKeys = Object.keys(result.testCases[0].fields);
       expect(fieldKeys).toContain('items[0].id');
       expect(fieldKeys).toContain('items[1].id');
+    });
+  });
+
+  describe('comparator mode (whole-object comparison)', () => {
+    it('uses single comparator for entire output', async () => {
+      const result = await evaluate<Input, { a: number; b: number }>({
+        executor: async () => ({ output: { a: 1, b: 2 } }),
+        comparator: (expected, actual) => ({
+          passed: expected.a === actual.a && expected.b === actual.b,
+        }),
+        testCases: [{ input: { id: 1 }, expected: { a: 1, b: 2 } }],
+      });
+
+      expect(result.testCases[0].passed).toBe(true);
+      expect(result.testCases[0].totalFields).toBe(1);
+      expect(result.testCases[0].fields['']).toBeDefined();
+    });
+
+    it('fails when comparator returns passed: false', async () => {
+      const result = await evaluate<Input, { a: number }>({
+        executor: async () => ({ output: { a: 999 } }),
+        comparator: (expected, actual) => ({
+          passed: expected.a === actual.a,
+        }),
+        testCases: [{ input: { id: 1 }, expected: { a: 1 } }],
+      });
+
+      expect(result.testCases[0].passed).toBe(false);
+      expect(result.testCases[0].passRate).toBe(0);
+    });
+
+    it('works with array outputs', async () => {
+      const result = await evaluate<Input, number[]>({
+        executor: async () => ({ output: [1, 2, 3] }),
+        comparator: (expected, actual) => ({
+          passed: JSON.stringify(expected) === JSON.stringify(actual),
+        }),
+        testCases: [{ input: { id: 1 }, expected: [1, 2, 3] }],
+      });
+
+      expect(result.testCases[0].passed).toBe(true);
+    });
+
+    it('works with primitive outputs', async () => {
+      const result = await evaluate<Input, string>({
+        executor: async () => ({ output: 'hello world' }),
+        comparator: (expected, actual) => ({
+          passed: actual.includes(expected),
+        }),
+        testCases: [{ input: { id: 1 }, expected: 'hello' }],
+      });
+
+      expect(result.testCases[0].passed).toBe(true);
+    });
+
+    it('receives context with null parents', async () => {
+      let receivedContext: unknown;
+
+      await evaluate<Input, { v: number }>({
+        executor: async () => ({ output: { v: 1 } }),
+        comparator: (expected, actual, context) => {
+          receivedContext = context;
+          return { passed: true };
+        },
+        testCases: [{ input: { id: 1 }, expected: { v: 1 } }],
+      });
+
+      expect(receivedContext).toEqual({ expectedParent: null, actualParent: null });
+    });
+
+    it('respects perTestThreshold', async () => {
+      const result = await evaluate<Input, { v: number }>({
+        executor: async () => ({ output: { v: 1 } }),
+        comparator: () => ({ passed: true }),
+        testCases: [{ input: { id: 1 }, expected: { v: 1 } }],
+        perTestThreshold: 0.5,
+      });
+
+      expect(result.testCases[0].passed).toBe(true);
+    });
+
+    it('stores expected and actual in field result', async () => {
+      const expected = { a: 1, b: 2 };
+      const actual = { a: 1, b: 3 };
+
+      const result = await evaluate<Input, typeof expected>({
+        executor: async () => ({ output: actual }),
+        comparator: () => ({ passed: false }),
+        testCases: [{ input: { id: 1 }, expected }],
+      });
+
+      expect(result.testCases[0].fields[''].expected).toEqual(expected);
+      expect(result.testCases[0].fields[''].actual).toEqual(actual);
+    });
+
+    it('aggregates results across multiple test cases', async () => {
+      const result = await evaluate<Input, { v: number }>({
+        executor: async (input) => ({ output: { v: input.id * 10 } }), // returns 10, 20, 30
+        comparator: (expected, actual) => ({ passed: expected.v === actual.v }),
+        testCases: [
+          { input: { id: 1 }, expected: { v: 10 } },  // pass: 10 === 10
+          { input: { id: 2 }, expected: { v: 999 } }, // fail: 20 !== 999
+          { input: { id: 3 }, expected: { v: 30 } },  // pass: 30 === 30
+        ],
+      });
+
+      expect(result.passed).toBe(2);
+      expect(result.total).toBe(3);
+      expect(result.successRate).toBeCloseTo(2 / 3);
     });
   });
 });

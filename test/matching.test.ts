@@ -670,4 +670,117 @@ describe('matchArrays', () => {
       expect(result.unmatchedActual).toEqual([0, 2]);
     });
   });
+
+  describe('nested array matching', () => {
+    it('matches nested arrays of primitives in different order', () => {
+      const expected = [[1, 2], [3, 4]];
+      const actual = [[3, 4], [1, 2]];
+
+      const result = matchArrays(expected, actual);
+
+      expect(result.assignments).toHaveLength(2);
+      expect(result.unmatchedExpected).toHaveLength(0);
+      // [1,2] should match [1,2], [3,4] should match [3,4]
+      expect(result.assignments).toContainEqual([0, 1]);
+      expect(result.assignments).toContainEqual([1, 0]);
+    });
+
+    it('matches nested arrays of objects using field comparators', () => {
+      const expected = [[{ a: 1 }], [{ a: 2 }]];
+      const actual = [[{ a: 2 }], [{ a: 1 }]];
+
+      const result = matchArrays(expected, actual, { a: exact });
+
+      expect(result.assignments).toHaveLength(2);
+      expect(result.unmatchedExpected).toHaveLength(0);
+      // [{a:1}] should match [{a:1}], [{a:2}] should match [{a:2}]
+      expect(result.assignments).toContainEqual([0, 1]);
+      expect(result.assignments).toContainEqual([1, 0]);
+    });
+
+    it('matches nested arrays with partial object matches', () => {
+      const expected = [[{ a: 1, b: 10 }], [{ a: 2, b: 20 }]];
+      const actual = [[{ a: 2, b: 99 }], [{ a: 1, b: 99 }]];
+
+      const result = matchArrays(expected, actual, { a: exact });
+
+      expect(result.assignments).toHaveLength(2);
+      // Should pair by field 'a' similarity
+      expect(result.assignments).toContainEqual([0, 1]); // a:1 -> a:1
+      expect(result.assignments).toContainEqual([1, 0]); // a:2 -> a:2
+    });
+
+    it('handles deeply nested arrays (3+ levels)', () => {
+      const expected = [[[1]], [[2]]];
+      const actual = [[[2]], [[1]]];
+
+      const result = matchArrays(expected, actual);
+
+      expect(result.assignments).toHaveLength(2);
+      expect(result.unmatchedExpected).toHaveLength(0);
+      expect(result.assignments).toContainEqual([0, 1]);
+      expect(result.assignments).toContainEqual([1, 0]);
+    });
+
+    it('handles mixed nested structures', () => {
+      const expected = [
+        [{ id: 1 }, { id: 2 }],
+        [{ id: 3 }],
+      ];
+      const actual = [
+        [{ id: 3 }],
+        [{ id: 1 }, { id: 2 }],
+      ];
+
+      const result = matchArrays(expected, actual, { id: exact });
+
+      expect(result.assignments).toHaveLength(2);
+      expect(result.assignments).toContainEqual([0, 1]);
+      expect(result.assignments).toContainEqual([1, 0]);
+    });
+
+    it('penalizes length mismatches in nested arrays', () => {
+      const expected = [[1, 2, 3], [4]];
+      const actual = [[4], [1, 2]]; // [1,2] is closer to [1,2,3] than [4] is
+
+      const result = matchArrays(expected, actual);
+
+      expect(result.assignments).toHaveLength(2);
+      // [1,2,3] should pair with [1,2] (2/3 similarity)
+      // [4] should pair with [4] (1/1 similarity)
+      expect(result.assignments).toContainEqual([0, 1]);
+      expect(result.assignments).toContainEqual([1, 0]);
+    });
+
+    it('handles empty nested arrays', () => {
+      const expected = [[], [1]];
+      const actual = [[1], []];
+
+      const result = matchArrays(expected, actual);
+
+      expect(result.assignments).toHaveLength(2);
+      expect(result.assignments).toContainEqual([0, 1]); // [] -> []
+      expect(result.assignments).toContainEqual([1, 0]); // [1] -> [1]
+    });
+
+    it('matches complex nested object arrays', () => {
+      const expected = [
+        [{ carrier: 'Acme', premium: 100 }, { carrier: 'Beta', premium: 200 }],
+        [{ carrier: 'Gamma', premium: 300 }],
+      ];
+      const actual = [
+        [{ carrier: 'Gamma', premium: 300 }],
+        [{ carrier: 'Acme', premium: 100 }, { carrier: 'Beta', premium: 200 }],
+      ];
+
+      const result = matchArrays(expected, actual, {
+        carrier: exact,
+        premium: exact,
+      });
+
+      expect(result.assignments).toHaveLength(2);
+      expect(result.assignments).toContainEqual([0, 1]);
+      expect(result.assignments).toContainEqual([1, 0]);
+    });
+  });
 });
