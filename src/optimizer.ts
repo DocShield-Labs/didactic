@@ -61,9 +61,42 @@ export async function optimize<TInput, TOutput>(
   let cumulativeCost = 0;
   let previousSuccessRate: number | undefined;
 
+  // Helper to record an iteration to both arrays
+  function recordIteration(
+    result: { passed: number; total: number; testCases: TestCaseResult<TInput, TOutput>[]; correctFields: number; totalFields: number; cost: number },
+    i: number,
+    cost: number,
+    duration: number,
+    inputTokens: number,
+    outputTokens: number
+  ): void {
+    iterations.push({
+      iteration: i,
+      systemPrompt: currentPrompt,
+      passed: result.passed,
+      total: result.total,
+      testCases: result.testCases,
+      cost,
+    });
+    iterationLogs.push({
+      iteration: i,
+      systemPrompt: currentPrompt,
+      passed: result.passed,
+      total: result.total,
+      correctFields: result.correctFields,
+      totalFields: result.totalFields,
+      testCases: result.testCases,
+      cost,
+      cumulativeCost,
+      duration,
+      inputTokens,
+      outputTokens,
+      previousSuccessRate,
+    });
+  }
 
   // Helper to write logs and return optimization result
-  async function finalize(success: boolean, finalPrompt: string): Promise<OptimizeResult<TInput, TOutput>> {
+  function finalize(success: boolean, finalPrompt: string): OptimizeResult<TInput, TOutput> {
     console.log(`\n=== Optimization Complete ===`);
     console.log(`Best result: ${(bestSuccessRate * 100).toFixed(1)}% (target was ${(options.targetSuccessRate * 100).toFixed(0)}%)`);
     console.log(`Total cost: $${cumulativeCost.toFixed(4)}`);
@@ -73,7 +106,7 @@ export async function optimize<TInput, TOutput>(
         ? options.storeLogs
         : `./didact-logs/optimize_${Date.now()}.md`;
       const content = generateLogContent(iterationLogs, config, options, success, finalPrompt);
-      await writeLog(logPath, content);
+      writeLog(logPath, content);
       console.log(`Logs written to: ${logPath}`);
     }
 
@@ -113,90 +146,23 @@ export async function optimize<TInput, TOutput>(
     // Check if eval passed target success rate
     if (result.successRate >= options.targetSuccessRate) {
       console.log(`  Target: ${(options.targetSuccessRate * 100).toFixed(0)}% | ✓ Target reached!`);
-      iterations.push({
-        iteration: i,
-        systemPrompt: currentPrompt,
-        passed: result.passed,
-        total: result.total,
-        testCases: result.testCases,
-        cost: result.cost,
-      });
-      iterationLogs.push({
-        iteration: i,
-        systemPrompt: currentPrompt,
-        passed: result.passed,
-        total: result.total,
-        correctFields: result.correctFields,
-        totalFields: result.totalFields,
-        testCases: result.testCases,
-        cost: result.cost,
-        cumulativeCost,
-        duration: Date.now() - iterationStart,
-        inputTokens: iterInputTokens,
-        outputTokens: iterOutputTokens,
-        previousSuccessRate,
-      });
+      recordIteration(result, i, result.cost, Date.now() - iterationStart, iterInputTokens, iterOutputTokens);
       return finalize(true, currentPrompt);
     }
 
     // Get all failures from the eval
     const failures = result.testCases.filter((tc) => !tc.passed);
     if (failures.length === 0) {
-      iterations.push({
-        iteration: i,
-        systemPrompt: currentPrompt,
-        passed: result.passed,
-        total: result.total,
-        testCases: result.testCases,
-        cost: result.cost,
-      });
-      iterationLogs.push({
-        iteration: i,
-        systemPrompt: currentPrompt,
-        passed: result.passed,
-        total: result.total,
-        correctFields: result.correctFields,
-        totalFields: result.totalFields,
-        testCases: result.testCases,
-        cost: result.cost,
-        cumulativeCost,
-        duration: Date.now() - iterationStart,
-        inputTokens: iterInputTokens,
-        outputTokens: iterOutputTokens,
-        previousSuccessRate,
-      });
+      recordIteration(result, i, result.cost, Date.now() - iterationStart, iterInputTokens, iterOutputTokens);
       return finalize(true, currentPrompt);
     }
 
     console.log(`  Target: ${(options.targetSuccessRate * 100).toFixed(0)}% | ${failures.length} failures to address`);
 
     // Check if cumulative cost has reached the max cost
-    // If so, terminate and return the current best prompt
     if (options.maxCost !== undefined && cumulativeCost >= options.maxCost) {
       console.log(`  Cost limit reached ($${cumulativeCost.toFixed(2)})`);
-      iterations.push({
-        iteration: i,
-        systemPrompt: currentPrompt,
-        passed: result.passed,
-        total: result.total,
-        testCases: result.testCases,
-        cost: result.cost,
-      });
-      iterationLogs.push({
-        iteration: i,
-        systemPrompt: currentPrompt,
-        passed: result.passed,
-        total: result.total,
-        correctFields: result.correctFields,
-        totalFields: result.totalFields,
-        testCases: result.testCases,
-        cost: result.cost,
-        cumulativeCost,
-        duration: Date.now() - iterationStart,
-        inputTokens: iterInputTokens,
-        outputTokens: iterOutputTokens,
-        previousSuccessRate,
-      });
+      recordIteration(result, i, result.cost, Date.now() - iterationStart, iterInputTokens, iterOutputTokens);
       return finalize(false, bestPrompt);
     }
 
@@ -230,31 +196,9 @@ export async function optimize<TInput, TOutput>(
     cumulativeCost += mergeResult.cost;
     console.log(`  Patches merged | Cost: $${mergeResult.cost.toFixed(4)} | Total: $${cumulativeCost.toFixed(4)}`);
 
-    // ─── RECORD ITERATION ───
+    // Record iteration
     const iterCost = result.cost + patchCost + mergeResult.cost;
-    iterations.push({
-      iteration: i,
-      systemPrompt: currentPrompt,
-      passed: result.passed,
-      total: result.total,
-      testCases: result.testCases,
-      cost: iterCost,
-    });
-    iterationLogs.push({
-      iteration: i,
-      systemPrompt: currentPrompt,
-      passed: result.passed,
-      total: result.total,
-      correctFields: result.correctFields,
-      totalFields: result.totalFields,
-      testCases: result.testCases,
-      cost: iterCost,
-      cumulativeCost,
-      duration: Date.now() - iterationStart,
-      inputTokens: iterInputTokens,
-      outputTokens: iterOutputTokens,
-      previousSuccessRate,
-    });
+    recordIteration(result, i, iterCost, Date.now() - iterationStart, iterInputTokens, iterOutputTokens);
 
     previousSuccessRate = result.successRate;
     previousPrompt = currentPrompt;
@@ -263,7 +207,6 @@ export async function optimize<TInput, TOutput>(
 
   return finalize(false, bestPrompt);
 }
-
 
 async function callLLM(messages: Message[], config: OptimizerConfig): Promise<LLMResult> {
   const spec = providerSpecs[config.provider];
@@ -336,8 +279,6 @@ async function generatePatch(
     Be concise. Output ONLY the suggested patch/change, not the full prompt.
     DO NOT overfit the prompt to the test case.
     Generalize examples if you choose to use them.
-    USE prompting best practices.
-    You are extracting data for Medical Malpractice quotes.
   `;
 
   const messages: Message[] = [

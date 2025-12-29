@@ -110,7 +110,6 @@ export const presenceWithSentinels = custom<unknown>({
     // Helper: Determines if a value should be treated as "absent"
     // Sentinel values are special strings that indicate "no value"
     const isAbsent = (v: unknown): boolean => {
-      // Standard absent checks: null, undefined, or empty string
       if (v == null || v === '') return true;
 
       // Sentinel string checks (case-insensitive)
@@ -124,7 +123,6 @@ export const presenceWithSentinels = custom<unknown>({
     const expectedPresent = !isAbsent(expected);
     const actualPresent = !isAbsent(actual);
 
-    // Logical implication: "if expected is present, then actual must be present"
     // Truth table:
     //   expected=absent,  actual=absent  → pass (nothing to check)
     //   expected=absent,  actual=present → pass (got more than expected)

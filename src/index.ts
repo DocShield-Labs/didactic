@@ -23,7 +23,7 @@ export type {
   OptimizeResult,
 } from './types.js';
 
-// Re-export enums
+// Re-export LLM provider enum
 export { LLMProviders } from './types.js';
 
 // Re-export executor config types

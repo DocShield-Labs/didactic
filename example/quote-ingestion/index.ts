@@ -204,8 +204,12 @@ async function main() {
     // },
   });
 
-  // Use logOptimizeResults(result as OptimizeResult<...>) when optimize is enabled
-  logEvalResults(result as EvalResult<QuoteInput, QuoteOutput>);
+  // Hacky narrowing to print the correct results
+  if ('iterations' in result) {
+    logOptimizeResults(result);
+  } else {
+    logEvalResults(result);
+  }
 }
 
 main().catch(console.error);

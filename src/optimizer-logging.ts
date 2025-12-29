@@ -129,7 +129,6 @@ function generateIterationSection(iter: IterationLog): string[] {
 
 function generateSummarySection(
   iterations: IterationLog[],
-  _options: OptimizeOptions,
   success: boolean,
   totalInputTokens: number,
   totalOutputTokens: number,
@@ -215,7 +214,7 @@ export function generateLogContent(
   }
 
   // Summary and progression
-  lines.push(...generateSummarySection(iterations, options, success, totalInputTokens, totalOutputTokens, totalDuration));
+  lines.push(...generateSummarySection(iterations, success, totalInputTokens, totalOutputTokens, totalDuration));
   lines.push(...generateProgressChart(iterations, options));
 
   // Final prompt
@@ -227,7 +226,7 @@ export function generateLogContent(
   return lines.join('\n');
 }
 
-export async function writeLog(logPath: string, content: string): Promise<void> {
+export function writeLog(logPath: string, content: string): void {
   const dir = path.dirname(logPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
