@@ -6,7 +6,6 @@ import type { Executor, ExecutorResult } from './types.js';
 export interface EndpointConfig<TOutput = unknown> {
   method?: 'POST' | 'GET';
   headers?: Record<string, string>;
-  mapRequest?: (input: unknown, systemPrompt?: string) => unknown;
   mapResponse?: (response: any) => TOutput;
   mapAdditionalContext?: (response: any) => unknown;
   mapCost?: (response: any) => number;
@@ -39,7 +38,6 @@ export function endpoint<TInput = unknown, TOutput = unknown>(
   const {
     method = 'POST',
     headers = {},
-    mapRequest,
     mapResponse,
     mapAdditionalContext,
     mapCost,
@@ -47,9 +45,7 @@ export function endpoint<TInput = unknown, TOutput = unknown>(
   } = config;
 
   return async (input: TInput, systemPrompt?: string): Promise<ExecutorResult<TOutput>> => {
-    const body = mapRequest
-      ? mapRequest(input, systemPrompt)
-      : { ...(input as object), systemPrompt };
+    const body = { ...(input as object), systemPrompt };
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);

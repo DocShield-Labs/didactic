@@ -36,6 +36,6 @@ export const createTestCases = async () => {
       });
     }
 
-    return testCases
+    return testCases;
 }
 
