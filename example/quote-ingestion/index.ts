@@ -11,7 +11,7 @@
  * Run with: npx tsx example/quote-ingestion/index.ts
  */
 
-import { didactic, name, date, numeric, within, exact, presence } from '../../src/index';
+import { didactic, name, date, numeric, within, exact, presence, LLMProviders, type OptimizeResult, type EvalResult, type TestCaseResult } from '../../src/index';
 import { employmentStatus, presenceWithSentinels, retroactiveDateRDI } from './customComparators';
 import { createTestCases } from './testCases';
 import type { QuoteInput, QuoteOutput } from './types';
@@ -25,6 +25,7 @@ interface ApiResponse {
       results: QuoteOutput;
       additional_context: unknown;
     }>;
+    totalCost: number;
   };
 }
 
@@ -38,6 +39,76 @@ function formatValue(value: unknown): string {
   }
   return String(value);
 }
+
+function logTestCases(testCases: TestCaseResult<QuoteInput, QuoteOutput>[], sep: string): void {
+  for (const testCase of testCases) {
+    console.log(sep);
+
+    const status = testCase.passed ? '✓' : '✗';
+    const emailId = testCase.input.emailId;
+    const pct = (testCase.passRate * 100).toFixed(0);
+
+    console.log(`${status} ${emailId}  [${testCase.passedFields}/${testCase.totalFields} fields, ${pct}%]`);
+
+    if (testCase.error) {
+      console.log(`\nERROR: ${testCase.error}`);
+    }
+
+    const failures = Object.entries(testCase.fields).filter(([, r]) => !r.passed);
+    if (failures.length > 0) {
+      console.log('\nFailed:');
+      for (const [field, fieldResult] of failures) {
+        console.log(`  ${field}`);
+        console.log(`    expected: ${formatValue(fieldResult.expected)}`);
+        console.log(`    actual:   ${formatValue(fieldResult.actual)}`);
+      }
+    }
+  }
+}
+
+function logEvalResults(result: EvalResult<QuoteInput, QuoteOutput>): void {
+  const sep = '═'.repeat(60);
+  const successRate = result.passed / result.total;
+
+  console.log('\n' + sep);
+  console.log('  EVAL RESULTS');
+  console.log(sep);
+  console.log(`  Tests:    ${result.passed}/${result.total} passed (${(successRate * 100).toFixed(0)}%)`);
+  console.log(`  Fields:   ${result.correctFields}/${result.totalFields} correct (${(result.accuracy * 100).toFixed(1)}%)`);
+
+  logTestCases(result.testCases, sep);
+  console.log(sep + '\n');
+}
+
+function logOptimizeResults(result: OptimizeResult<QuoteInput, QuoteOutput>): void {
+  const sep = '═'.repeat(60);
+  const lastIteration = result.iterations[result.iterations.length - 1];
+  const successRate = lastIteration.passed / lastIteration.total;
+
+  let correctFields = 0;
+  let totalFields = 0;
+  for (const tc of lastIteration.testCases) {
+    const fieldResults = Object.values(tc.fields);
+    totalFields += fieldResults.length;
+    correctFields += fieldResults.filter((f) => f.passed).length;
+  }
+  const accuracy = totalFields > 0 ? correctFields / totalFields : 0;
+
+  console.log('\n' + sep);
+  console.log('  OPTIMIZATION RESULTS');
+  console.log(sep);
+  console.log(`  Success:  ${result.success ? 'Yes' : 'No'}`);
+  console.log(`  Iterations: ${result.iterations.length}`);
+  console.log(sep);
+  console.log('  FINAL ITERATION');
+  console.log(sep);
+  console.log(`  Tests:    ${lastIteration.passed}/${lastIteration.total} passed (${(successRate * 100).toFixed(0)}%)`);
+  console.log(`  Fields:   ${correctFields}/${totalFields} correct (${(accuracy * 100).toFixed(1)}%)`);
+
+  logTestCases(lastIteration.testCases, sep);
+  console.log(sep + '\n');
+}
+
 /**
  * HTTP endpoint executor that calls the quote extraction workflow API.
  * Note: mapResponse receives 'any' so you can type it directly - no casting needed.
@@ -50,6 +121,7 @@ const quoteExtractor = didactic.endpoint<QuoteInput, QuoteOutput>(
     },
     mapResponse: (response: ApiResponse) => response.data.testCases[0].results,
     mapAdditionalContext: (response: ApiResponse) => response.data.testCases[0].additional_context,
+    mapCost: (response: ApiResponse) => response.data.totalCost,
     timeout: 300000, // 5 minutes for LLM workflows
   }
 );
@@ -120,47 +192,20 @@ async function main() {
     },
     perTestThreshold: 0.95,
     unorderedList: true,
+
+    // optimize: {
+    //   provider: LLMProviders.anthropic_claude_opus,
+    //   systemPrompt: ``,
+    //   targetSuccessRate: 0.95,
+    //   // maxIterations: 10,
+    //   maxCost: 40,
+    //   apiKey: process.env.ANTHROPIC_API_KEY ?? '',
+    //   storeLogs: true, 
+    // },
   });
 
-  const sep = '═'.repeat(60);
-
-  // Print header
-  console.log('\n' + sep);
-  console.log('  EVALUATION RESULTS');
-  console.log(sep);
-  console.log(`  Tests:    ${result.passed}/${result.total} passed (${(result.successRate * 100).toFixed(0)}%)`);
-  console.log(`  Fields:   ${result.correctFields}/${result.totalFields} correct (${(result.accuracy * 100).toFixed(1)}%)`);
-
-  // Print each test case (already sorted by eval)
-  for (const testCase of result.testCases) {
-    console.log(sep);
-
-    const status = testCase.passed ? '✓' : '✗';
-    const emailId = testCase.input.emailId;  // No cast needed - input is typed as QuoteInput
-    const pct = (testCase.passRate * 100).toFixed(0);
-
-    console.log(`${status} ${emailId}  [${testCase.passedFields}/${testCase.totalFields} fields, ${pct}%]`);
-
-    if (testCase.error) {
-      console.log(`\nERROR: ${testCase.error}`);
-    }
-
-    const failures = Object.entries(testCase.fields).filter(([, r]) => !r.passed);
-    if (failures.length > 0) {
-      // console.log('\nExpected:');
-      // console.log(indent(JSON.stringify(testCase.expected, null, 2), 2));
-      // console.log('\nActual:');
-      // console.log(indent(JSON.stringify(testCase.actual, null, 2), 2));
-      console.log('\nFailed:');
-      for (const [field, fieldResult] of failures) {
-        console.log(`  ${field}`);
-        console.log(`    expected: ${formatValue(fieldResult.expected)}`);
-        console.log(`    actual:   ${formatValue(fieldResult.actual)}`);
-      }
-    }
-  }
-
-  console.log(sep + '\n');
+  // Use logOptimizeResults(result as OptimizeResult<...>) when optimize is enabled
+  logEvalResults(result as EvalResult<QuoteInput, QuoteOutput>);
 }
 
 main().catch(console.error);

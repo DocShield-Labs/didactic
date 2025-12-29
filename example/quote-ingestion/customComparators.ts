@@ -107,11 +107,16 @@ export const employmentStatus = custom<string>({
  */
 export const presenceWithSentinels = custom<unknown>({
   compare: (expected, actual) => {
+    // Helper: Determines if a value should be treated as "absent"
+    // Sentinel values are special strings that indicate "no value"
     const isAbsent = (v: unknown): boolean => {
+      // Standard absent checks: null, undefined, or empty string
       if (v == null || v === '') return true;
+
+      // Sentinel string checks (case-insensitive)
       if (typeof v === 'string') {
         const upper = v.toUpperCase();
-        return upper === 'EMPTY' || upper === 'NOT_FOUND';
+        return upper === 'EMPTY' || upper === 'NOT_FOUND' || upper === 'N/A';
       }
       return false;
     };
@@ -119,6 +124,12 @@ export const presenceWithSentinels = custom<unknown>({
     const expectedPresent = !isAbsent(expected);
     const actualPresent = !isAbsent(actual);
 
+    // Logical implication: "if expected is present, then actual must be present"
+    // Truth table:
+    //   expected=absent,  actual=absent  → pass (nothing to check)
+    //   expected=absent,  actual=present → pass (got more than expected)
+    //   expected=present, actual=present → pass (both have values)
+    //   expected=present, actual=absent  → FAIL (expected value, got nothing)
     return !expectedPresent || actualPresent;
   },
 });

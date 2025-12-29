@@ -43,6 +43,7 @@ export type ComparatorMap = Record<string, Comparator<any>>;
 export interface ExecutorResult<TOutput = unknown> {
   output: TOutput;
   additionalContext?: unknown;
+  cost?: number;
 }
 
 /**
@@ -66,6 +67,20 @@ export interface TestCase<TInput = unknown, TOutput = unknown> {
 }
 
 /**
+ * Inline optimization config for didactic.eval().
+ */
+export type OptimizeConfig = {
+  systemPrompt: string;
+  targetSuccessRate: number;
+  maxIterations?: number;
+  maxCost?: number;
+  apiKey: string;
+  maxTokens?: number;
+  storeLogs?: boolean | string;  // true = "./didact-logs/optimize_<timestamp>.md", string = custom path
+  provider: LLMProviders;
+};
+
+/**
  * Base eval configuration shared by both modes.
  */
 interface BaseEvalConfig<TInput = unknown, TOutput = unknown> {
@@ -74,6 +89,7 @@ interface BaseEvalConfig<TInput = unknown, TOutput = unknown> {
   testCases: TestCase<TInput, TOutput>[];
   perTestThreshold?: number;  // Default: 1.0 (all fields must pass)
   unorderedList?: boolean;    // Default: false (ordered array comparison)
+  optimize?: OptimizeConfig;
 }
 
 /**
@@ -101,6 +117,7 @@ export interface TestCaseResult<TInput = unknown, TOutput = unknown> {
   expected: TOutput;
   actual?: TOutput;
   additionalContext?: unknown;
+  cost?: number;
   passed: boolean;
   fields: Record<string, FieldResult>;
   error?: string;
@@ -121,6 +138,7 @@ export interface EvalResult<TInput = unknown, TOutput = unknown> {
   correctFields: number;
   totalFields: number;
   accuracy: number;
+  cost: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -128,13 +146,35 @@ export interface EvalResult<TInput = unknown, TOutput = unknown> {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
+ * Chat message for LLM calls.
+ */
+export interface Message {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+/**
+ * Supported LLM providers.
+ */
+export enum LLMProviders {
+  // Anthropic Claude 4.5
+  anthropic_claude_opus = 'anthropic_claude_opus',
+  anthropic_claude_sonnet = 'anthropic_claude_sonnet',
+  anthropic_claude_haiku = 'anthropic_claude_haiku',
+  // OpenAI GPT-5
+  openai_gpt5 = 'openai_gpt5',
+  openai_gpt5_mini = 'openai_gpt5_mini',
+  openai_o3_mini = 'openai_o3_mini',
+}
+
+/**
  * Optimizer configuration.
  */
-export interface OptimizerConfig {
-  model?: string;
-  apiKey?: string;
+export type OptimizerConfig = {
+  apiKey: string;
   maxTokens?: number;
-}
+  provider: LLMProviders;
+};
 
 /**
  * Options for running an optimization.
@@ -142,7 +182,9 @@ export interface OptimizerConfig {
 export interface OptimizeOptions {
   systemPrompt: string;
   targetSuccessRate: number;
-  maxIterations: number;
+  maxIterations?: number;
+  maxCost?: number;
+  storeLogs?: boolean | string;  // true = "./didact-logs/optimize_<timestamp>.md", string = custom path
 }
 
 /**
@@ -154,6 +196,7 @@ export interface IterationResult<TInput = unknown, TOutput = unknown> {
   passed: number;
   total: number;
   testCases: TestCaseResult<TInput, TOutput>[];
+  cost: number;
 }
 
 /**
@@ -163,4 +206,5 @@ export interface OptimizeResult<TInput = unknown, TOutput = unknown> {
   success: boolean;
   finalPrompt: string;
   iterations: IterationResult<TInput, TOutput>[];
+  totalCost: number;
 }

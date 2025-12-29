@@ -27,3 +27,6 @@ coverage/
 
 # TypeScript cache
 *.tsbuildinfo
+
+
+didact-logs/

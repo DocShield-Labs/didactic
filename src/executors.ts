@@ -9,6 +9,7 @@ export interface EndpointConfig<TOutput = unknown> {
   mapRequest?: (input: unknown, systemPrompt?: string) => unknown;
   mapResponse?: (response: any) => TOutput;
   mapAdditionalContext?: (response: any) => unknown;
+  mapCost?: (response: any) => number;
   timeout?: number;
 }
 
@@ -18,6 +19,7 @@ export interface EndpointConfig<TOutput = unknown> {
 export interface FnConfig<TInput, TOutput> {
   fn: (input: TInput, systemPrompt?: string) => Promise<TOutput>;
   mapAdditionalContext?: (result: TOutput) => unknown;
+  mapCost?: (result: TOutput) => number;
 }
 
 /**
@@ -40,11 +42,14 @@ export function endpoint<TInput = unknown, TOutput = unknown>(
     mapRequest,
     mapResponse,
     mapAdditionalContext,
+    mapCost,
     timeout = 30000,
   } = config;
 
   return async (input: TInput, systemPrompt?: string): Promise<ExecutorResult<TOutput>> => {
-    const body = mapRequest ? mapRequest(input, systemPrompt) : input;
+    const body = mapRequest
+      ? mapRequest(input, systemPrompt)
+      : { ...(input as object), systemPrompt };
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -69,15 +74,17 @@ export function endpoint<TInput = unknown, TOutput = unknown>(
 
       const data = await response.json();
       const additionalContext = mapAdditionalContext?.(data);
+      const cost = mapCost?.(data) ?? 0;
 
       if (mapResponse) {
-        return { output: mapResponse(data), additionalContext };
+        return { output: mapResponse(data), additionalContext, cost };
       }
 
       // Default response mapping assumes { output } structure
       return {
         output: (data.output ?? data) as TOutput,
         additionalContext,
+        cost,
       };
     } catch (error) {
       clearTimeout(timeoutId);
@@ -105,7 +112,8 @@ export function fn<TInput, TOutput extends object>(
   return async (input: TInput, systemPrompt?: string): Promise<ExecutorResult<TOutput>> => {
     const output = await config.fn(input, systemPrompt);
     const additionalContext = config.mapAdditionalContext?.(output);
-    return { output, additionalContext };
+    const cost = config.mapCost?.(output) ?? 0;
+    return { output, additionalContext, cost };
   };
 }
 

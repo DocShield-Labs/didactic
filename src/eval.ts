@@ -56,6 +56,7 @@ export async function evaluate<TInput, TOutput>(
           expected,
           actual: result.output,
           additionalContext: result.additionalContext,
+          cost: result.cost ?? 0,
           passed,
           fields,
           passedFields,
@@ -67,6 +68,7 @@ export async function evaluate<TInput, TOutput>(
           input,
           expected,
           actual: undefined,
+          cost: 0,
           passed: false,
           fields: {},
           passedFields: 0,
@@ -96,6 +98,7 @@ export async function evaluate<TInput, TOutput>(
     correctFields += fieldResults.filter((f) => f.passed).length;
   }
   const accuracy = totalFields > 0 ? correctFields / totalFields : 0;
+  const cost = results.reduce((sum, r) => sum + (r.cost ?? 0), 0);
 
   return {
     systemPrompt,
@@ -106,6 +109,7 @@ export async function evaluate<TInput, TOutput>(
     correctFields,
     totalFields,
     accuracy,
+    cost,
   };
 }
 
