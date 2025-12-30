@@ -31,7 +31,7 @@ export async function evaluate<TInput, TOutput>(
         let fields: Record<string, FieldResult>;
         if (comparator) {
           // Whole-object comparison mode
-          const compResult = comparator(expected, result.output, { expectedParent: null, actualParent: null });
+          const compResult = comparator(expected, result.output, { expectedParent: undefined, actualParent: undefined });
           fields = {
             '': {
               passed: compResult.passed,
@@ -122,8 +122,8 @@ function compareFields(
   actual: unknown,
   comparators: ComparatorMap,
   path = '',
-  expectedParent: unknown = null,
-  actualParent: unknown = null,
+  expectedParent?: unknown,
+  actualParent?: unknown,
   unorderedList = false
 ): Record<string, FieldResult> {
   const results: Record<string, FieldResult> = {};

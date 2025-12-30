@@ -75,7 +75,6 @@ export type OptimizeConfig = {
   maxIterations?: number;
   maxCost?: number;
   apiKey: string;
-  maxTokens?: number;
   storeLogs?: boolean | string;  // true = "./didact-logs/optimize_<timestamp>.md", string = custom path
   provider: LLMProviders;
 };
@@ -97,8 +96,8 @@ interface BaseEvalConfig<TInput = unknown, TOutput = unknown> {
  * Either `comparators` (field mapping) OR `comparator` (whole-object) must be provided.
  */
 export type EvalConfig<TInput = unknown, TOutput = unknown> =
-  | (BaseEvalConfig<TInput, TOutput> & { comparators: ComparatorMap; comparator?: never })
-  | (BaseEvalConfig<TInput, TOutput> & { comparator: Comparator<TOutput>; comparators?: never });
+  | (BaseEvalConfig<TInput, TOutput> & { comparators: ComparatorMap; comparator?: undefined })
+  | (BaseEvalConfig<TInput, TOutput> & { comparator: Comparator<TOutput>; comparators?: undefined });
 
 /**
  * Result for a single field comparison.
@@ -172,7 +171,6 @@ export enum LLMProviders {
  */
 export type OptimizerConfig = {
   apiKey: string;
-  maxTokens?: number;
   provider: LLMProviders;
 };
 

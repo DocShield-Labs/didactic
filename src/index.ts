@@ -90,7 +90,7 @@ export const didactic = {
           maxCost: optimize.maxCost,
           storeLogs: optimize.storeLogs,
         },
-        { provider: optimize.provider, apiKey: optimize.apiKey, maxTokens: optimize.maxTokens }
+        { provider: optimize.provider, apiKey: optimize.apiKey }
       );
     }
     return evaluate(config);
@@ -100,7 +100,7 @@ export const didactic = {
    * Run optimization to improve a system prompt.
    */
   optimize<TInput, TOutput>(
-    evalConfig: Omit<EvalConfig<TInput, TOutput>, 'systemPrompt'>,
+    evalConfig: EvalConfig<TInput, TOutput>,
     options: OptimizeOptions,
     config: OptimizerConfig
   ): Promise<OptimizeResult<TInput, TOutput>> {
