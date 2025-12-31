@@ -169,6 +169,16 @@ export enum LLMProviders {
 }
 
 /**
+ * LLM provider specification.
+ */
+export interface ProviderSpec {
+  model: string;
+  maxTokens: number;
+  costPerMillionInput: number;
+  costPerMillionOutput: number;
+}
+
+/**
  * Result for a single optimization iteration.
  */
 export interface IterationResult<TInput = unknown, TOutput = unknown> {

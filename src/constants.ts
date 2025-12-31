@@ -1,12 +1,4 @@
-import { LLMProviders } from './types.js';
-
-// LLM Provider configuration
-export interface ProviderSpec {
-  model: string;
-  maxTokens: number;
-  costPerMillionInput: number;
-  costPerMillionOutput: number;
-}
+import { LLMProviders, ProviderSpec } from './types.js';
 
 export const PROVIDER_SPECS: Record<LLMProviders, ProviderSpec> = {
   [LLMProviders.anthropic_claude_opus]: { model: 'claude-opus-4-5-20251101', maxTokens: 64000, costPerMillionInput: 5.00, costPerMillionOutput: 25.00 },
