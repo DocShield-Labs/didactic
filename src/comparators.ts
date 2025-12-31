@@ -1,4 +1,5 @@
 import type { Comparator, ComparatorContext, ComparatorResult } from './types.js';
+import { NAME_SUFFIXES } from './constants.js';
 import * as chrono from 'chrono-node';
 import { differenceInDays } from 'date-fns';
 import Levenshtein from 'levenshtein';
@@ -216,9 +217,6 @@ function normalizeDate(value: unknown): string | null {
   const parsed = chrono.parseDate(String(value));
   return parsed?.toISOString().split('T')[0] ?? null;
 }
-
-// Requires at least one word before suffix (via lookbehind)
-const NAME_SUFFIXES = /(?<=\S)\s*,?\s*(inc\.?|llc\.?|ltd\.?|l\.l\.c\.?|corp\.?|corporation|company|co\.?)$/i;
 
 function normalizeName(value: unknown): string | null {
   if (value == null || value === '') return null;

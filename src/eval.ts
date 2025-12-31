@@ -6,6 +6,7 @@ import type {
 } from './types.js';
 import { matchArrays } from './matching.js';
 import { exact } from './comparators.js';
+import { DEFAULT_PER_TEST_THRESHOLD } from './constants.js';
 
 /**
  * Run all test cases and return results.
@@ -60,7 +61,7 @@ export async function evaluate<TInput, TOutput>(
       const passedFields = Object.values(fields).filter((f) => f.passed).length;
       const totalFields = Object.values(fields).length;
       const passRate = totalFields === 0 ? 1 : passedFields / totalFields;
-      const threshold = config.perTestThreshold ?? 1.0;
+      const threshold = config.perTestThreshold ?? DEFAULT_PER_TEST_THRESHOLD;
       const passed = passRate >= threshold;
 
       return {

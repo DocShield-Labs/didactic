@@ -7,7 +7,7 @@ import type {
   OptimizeResult,
   Message,
 } from './types.js';
-import { LLMProviders } from './types.js';
+import { PROVIDER_SPECS, ANTHROPIC_THINKING_BUDGET_TOKENS, TOKENS_PER_MILLION } from './constants.js';
 import { evaluate } from './eval.js';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
@@ -34,27 +34,12 @@ import {
   writeFinalLogs,
 } from './optimizer-logging.js';
 
-interface ProviderSpec {
-  model: string;
-  maxTokens: number;
-  costPerMillionInput: number;
-  costPerMillionOutput: number;
-}
-
 interface LLMResult {
   text: string;
   cost: number;
   inputTokens: number;
   outputTokens: number;
 }
-
-const providerSpecs: Record<LLMProviders, ProviderSpec> = {
-  [LLMProviders.anthropic_claude_opus]: { model: 'claude-opus-4-5-20251101', maxTokens: 64000, costPerMillionInput: 5.00, costPerMillionOutput: 25.00 },
-  [LLMProviders.anthropic_claude_sonnet]: { model: 'claude-sonnet-4-5-20251101', maxTokens: 64000, costPerMillionInput: 3.00, costPerMillionOutput: 15.00 },
-  [LLMProviders.anthropic_claude_haiku]: { model: 'claude-haiku-4-5-20251101', maxTokens: 64000, costPerMillionInput: 1.00, costPerMillionOutput: 5.00 },
-  [LLMProviders.openai_gpt5]: { model: 'gpt-5.2', maxTokens: 32000, costPerMillionInput: 1.75, costPerMillionOutput: 14.00 },
-  [LLMProviders.openai_gpt5_mini]: { model: 'gpt-5-mini', maxTokens: 32000, costPerMillionInput: 0.25, costPerMillionOutput: 2.00 },
-};
 
 export async function optimize<TInput, TOutput>(
   evalConfig: EvalConfig<TInput, TOutput>,
@@ -65,7 +50,7 @@ export async function optimize<TInput, TOutput>(
 
   const maxIterations = config.maxIterations ?? (config.maxCost !== undefined ? Infinity : 5);
   const startTime = new Date();
-  const model = providerSpecs[config.provider].model;
+  const model = PROVIDER_SPECS[config.provider].model;
 
   // Context of the iteration to pass to optimizer-logging functions
   const logContext: LogContext = {
@@ -257,7 +242,7 @@ export async function optimize<TInput, TOutput>(
 }
 
 async function callLLM(messages: Message[], config: OptimizeConfig, useThinking: boolean = false): Promise<LLMResult> {
-  const spec = providerSpecs[config.provider];
+  const spec = PROVIDER_SPECS[config.provider];
 
   // Anthropic
   if (config.provider.startsWith('anthropic')) {
@@ -275,7 +260,7 @@ async function callLLM(messages: Message[], config: OptimizeConfig, useThinking:
 
     // Add thinking if enabled
     if (useThinking) {
-      streamOptions.thinking = { type: 'enabled', budget_tokens: 31999 };
+      streamOptions.thinking = { type: 'enabled', budget_tokens: ANTHROPIC_THINKING_BUDGET_TOKENS };
     }
 
     // Stream response
@@ -293,7 +278,7 @@ async function callLLM(messages: Message[], config: OptimizeConfig, useThinking:
     const outputTokens = finalMessage.usage.output_tokens;
 
     // Calculate cost
-    const cost = (inputTokens * spec.costPerMillionInput + outputTokens * spec.costPerMillionOutput) / 1_000_000;
+    const cost = (inputTokens * spec.costPerMillionInput + outputTokens * spec.costPerMillionOutput) / TOKENS_PER_MILLION;
 
     return { text, cost, inputTokens, outputTokens };
   }
@@ -323,7 +308,7 @@ async function callLLM(messages: Message[], config: OptimizeConfig, useThinking:
     const outputTokens = response.usage?.completion_tokens ?? 0;
 
     // Calculate cost
-    const cost = (inputTokens * spec.costPerMillionInput + outputTokens * spec.costPerMillionOutput) / 1_000_000;
+    const cost = (inputTokens * spec.costPerMillionInput + outputTokens * spec.costPerMillionOutput) / TOKENS_PER_MILLION;
 
     return { text, cost, inputTokens, outputTokens };
   }

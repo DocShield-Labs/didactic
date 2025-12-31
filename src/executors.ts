@@ -1,4 +1,5 @@
 import type { Executor, ExecutorResult } from './types.js';
+import { DEFAULT_ENDPOINT_TIMEOUT_MS } from './constants.js';
 
 /**
  * Configuration for endpoint executor.
@@ -41,7 +42,7 @@ export function endpoint<TInput = unknown, TOutput = unknown>(
     mapResponse,
     mapAdditionalContext,
     mapCost,
-    timeout = 30000,
+    timeout = DEFAULT_ENDPOINT_TIMEOUT_MS,
   } = config;
 
   return async (input: TInput, systemPrompt?: string): Promise<ExecutorResult<TOutput>> => {
