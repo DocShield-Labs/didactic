@@ -720,30 +720,6 @@ describe('evaluate', () => {
       expect(maxConcurrent).toBe(5);
     });
 
-    it('pauses between batches when rateLimitPause is set', async () => {
-      const batchEndTimes: number[] = [];
-
-      const executor = async (input: { id: number }) => {
-        return { output: { v: input.id } };
-      };
-
-      await evaluate<Input, Output>({
-        executor,
-        comparators: { v: exact },
-        rateLimitBatch: 2,
-        rateLimitPause: 0.05, // 50ms pause
-        testCases: [
-          { input: { id: 1 }, expected: { v: 1 } },
-          { input: { id: 2 }, expected: { v: 2 } },
-          { input: { id: 3 }, expected: { v: 3 } },
-          { input: { id: 4 }, expected: { v: 4 } },
-        ],
-      });
-
-      // Test completes without error - pause was applied
-      expect(true).toBe(true);
-    });
-
     it('does not pause after the last batch', async () => {
       const startTime = Date.now();
 
