@@ -46,7 +46,9 @@ export function endpoint<TInput = unknown, TOutput = unknown>(
   } = config;
 
   return async (input: TInput, systemPrompt?: string): Promise<ExecutorResult<TOutput>> => {
-    const body = { ...(input as object), systemPrompt };
+    const body = typeof input === 'object' && input !== null
+      ? { ...input, systemPrompt }
+      : { input, systemPrompt };
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
