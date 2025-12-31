@@ -134,7 +134,7 @@ const quoteExtractorFn = didactic.fn({
         const failure = data.failure as { message?: string };
         const output = [] as QuoteOutputWithMeta;
         output.cost = 0;
-        output.additionalContext = failure.message || 'Workflow execution failed';
+        output.additionalContext = failure.message ? `The execution itself failed, there were no results. This means your prompt may have given an instruction that caused it to break: ${failure.message}.` : 'Workflow execution failed'
         return output;
       }
 
@@ -616,12 +616,15 @@ async function main() {
       </final_verification>
       `,
       targetSuccessRate: 1,
-      // maxIterations: 10,
-      maxCost: 100,
-      provider: LLMProviders.anthropic_claude_opus,
-      apiKey: process.env.ANTHROPIC_API_KEY ?? '',
+      maxIterations: 1,
+      // maxCost: 100,
+      provider: LLMProviders.openai_gpt5,
+      apiKey: process.env.OPENAI_API_KEY ?? '',
       storeLogs: true, 
+      thinking: true,
     },
+    // rateLimitBatch: 10,
+    // rateLimitPause: 30,
   });
 
   // Hacky narrowing to print the correct results

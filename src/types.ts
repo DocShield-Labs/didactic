@@ -75,8 +75,9 @@ export type OptimizeConfig = {
   maxIterations?: number;
   maxCost?: number;
   apiKey: string;
-  storeLogs?: boolean | string;  // true = "./didact-logs/optimize_<timestamp>.md", string = custom path
+  storeLogs?: boolean | string;  // true = "./didact-logs/optimize_<timestamp>/summary.md", string = custom path
   provider: LLMProviders;
+  thinking?: boolean;
 };
 
 /**
@@ -89,6 +90,8 @@ interface BaseEvalConfig<TInput = unknown, TOutput = unknown> {
   perTestThreshold?: number;  // Default: 1.0 (all fields must pass)
   unorderedList?: boolean;    // Default: false (ordered array comparison)
   optimize?: OptimizeConfig;
+  rateLimitBatch?: number;    // Run N test cases at a time (default: all in parallel)
+  rateLimitPause?: number;    // Wait N seconds between batches
 }
 
 /**
@@ -163,26 +166,6 @@ export enum LLMProviders {
   // OpenAI GPT-5
   openai_gpt5 = 'openai_gpt5',
   openai_gpt5_mini = 'openai_gpt5_mini',
-  openai_o3_mini = 'openai_o3_mini',
-}
-
-/**
- * Optimizer configuration.
- */
-export type OptimizerConfig = {
-  apiKey: string;
-  provider: LLMProviders;
-};
-
-/**
- * Options for running an optimization.
- */
-export interface OptimizeOptions {
-  systemPrompt: string;
-  targetSuccessRate: number;
-  maxIterations?: number;
-  maxCost?: number;
-  storeLogs?: boolean | string;  // true = "./didact-logs/optimize_<timestamp>.md", string = custom path
 }
 
 /**
@@ -205,4 +188,5 @@ export interface OptimizeResult<TInput = unknown, TOutput = unknown> {
   finalPrompt: string;
   iterations: IterationResult<TInput, TOutput>[];
   totalCost: number;
+  logFolder?: string;
 }

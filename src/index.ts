@@ -17,8 +17,6 @@ export type {
   // Optimizer types
   Message,
   OptimizeConfig,
-  OptimizerConfig,
-  OptimizeOptions,
   IterationResult,
   OptimizeResult,
 } from './types.js';
@@ -42,7 +40,7 @@ export { evaluate } from './eval.js';
 export { optimize } from './optimizer.js';
 
 // Main didact namespace
-import type { EvalConfig, EvalResult, Executor, OptimizerConfig, OptimizeOptions, OptimizeResult } from './types.js';
+import type { EvalConfig, EvalResult, Executor, OptimizeConfig, OptimizeResult } from './types.js';
 import type { EndpointConfig, FnConfig } from './executors.js';
 import { evaluate } from './eval.js';
 import { optimize as runOptimize } from './optimizer.js';
@@ -81,17 +79,7 @@ export const didactic = {
   eval<TInput, TOutput>(config: EvalConfig<TInput, TOutput>): Promise<EvalResult<TInput, TOutput> | OptimizeResult<TInput, TOutput>> {
     if (config.optimize) {
       const { optimize, ...evalConfig } = config;
-      return runOptimize(
-        evalConfig,
-        {
-          systemPrompt: optimize.systemPrompt,
-          targetSuccessRate: optimize.targetSuccessRate,
-          maxIterations: optimize.maxIterations,
-          maxCost: optimize.maxCost,
-          storeLogs: optimize.storeLogs,
-        },
-        { provider: optimize.provider, apiKey: optimize.apiKey }
-      );
+      return runOptimize(evalConfig, optimize);
     }
     return evaluate(config);
   },
@@ -101,10 +89,9 @@ export const didactic = {
    */
   optimize<TInput, TOutput>(
     evalConfig: EvalConfig<TInput, TOutput>,
-    options: OptimizeOptions,
-    config: OptimizerConfig
+    config: OptimizeConfig
   ): Promise<OptimizeResult<TInput, TOutput>> {
-    return runOptimize(evalConfig, options, config);
+    return runOptimize(evalConfig, config);
   },
 
   /**

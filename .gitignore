@@ -30,3 +30,7 @@ coverage/
 
 
 didact-logs/
+
+yalc.lock
+yalc.sig
+.yalc/
