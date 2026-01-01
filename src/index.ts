@@ -5,6 +5,7 @@ export type {
   ComparatorContext,
   ComparatorResult,
   ComparatorMap,
+  ComparatorsConfig,
   // Executor types
   Executor,
   ExecutorResult,

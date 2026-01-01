@@ -165,11 +165,11 @@ const result = await didactic.eval(config);
 |----------|------|------|----------|---------|-------------|
 | `executor` | `Executor<TInput, TOutput>` | Object | **Yes** | — | Function that executes your LLM workflow. Receives input and optional system prompt, returns structured output. |
 | `testCases` | `TestCase<TInput, TOutput>[]` | Array | **Yes** | — | Array of `{ input, expected }` pairs. Each test case runs through the executor and compares output to expected. |
-| `comparators` | `ComparatorMap` | Object | **One of** | — | Record of field names to comparators. Use when you want different comparison logic per field. |
-| `comparator` | `Comparator<TOutput>` | Function | **One of** | — | Single comparator for the entire output object. Use when you need custom whole-object comparison logic. |
+| `comparators` | `ComparatorsConfig` | Object/Function | **One of** | — | Comparator(s) for expected vs. actual output. Pass an object of field names to comparators for field-level comparison of objects or list of objects. Or pass a single comparator function for uniform comparison across the entire output (primitives, lists of primitives). |
+| `comparatorOverride` | `Comparator<TOutput>` | Function | **One of** | — | Custom whole-object comparison function. Use when you need complete control over comparison logic and want to bypass field-level matching. |
 | `systemPrompt` | `string` | Primitive | No | — | System prompt passed to the executor. Required if using optimization. |
 | `perTestThreshold` | `number` | Primitive | No | `1.0` | Minimum field pass rate for a test case to pass (0.0–1.0). At default 1.0, all fields must pass. Set to 0.8 to pass if 80% of fields match. |
-| `unorderedList` | `boolean` | Primitive | No | `false` | Enable Hungarian matching for array comparison. When true, arrays are matched by similarity rather than index position. Used when your expected output is an array of things. |
+| `unorderedList` | `boolean` | Primitive | No | `false` | Enable Hungarian matching for array comparison. When true, arrays are matched by similarity rather than index position. Example: `output = [1, 2, 3, 4], expected = [4, 3, 2, 1]` - you would set `unorderedList` to `true` if you consider this a pass. Use `unorderedList` when your expected output is an array of things and you want to compare the items in the array by similarity rather than index position. Works for object and primitive arrays. |
 | `rateLimitBatch` | `number` | Primitive | No | — | Number of test cases to run concurrently. Use with `rateLimitPause` for rate-limited APIs. |
 | `rateLimitPause` | `number` | Primitive | No | — | Seconds to wait between batches. Pairs with `rateLimitBatch`. |
 | `optimize` | `OptimizeConfig` | Object | No | — | Inline optimization config. When provided, triggers optimization mode instead of single eval. |
@@ -382,9 +382,35 @@ Comparators bridge the gap between messy LLM output and semantic correctness. Ra
 
 Each comparator returns a `passed` boolean and a `similarity` score (0.0–1.0). The pass/fail determines test results, while similarity enables Hungarian matching for unordered array comparison.
 
-### `comparators` vs `comparator`
+### `comparators` vs `comparatorOverride`
 
-Use **`comparators`** (field-level) when your output is an object or list of objects and you want different comparison logic per field:
+Use **`comparators`** for standard comparison. It accepts either:
+
+**1. A single comparator function** — Applied uniformly across the output:
+
+```typescript
+// Clean syntax for primitives, arrays, or simple objects
+const result = await didactic.eval({
+  executor: myNumberExtractor,
+  comparators: exact,  // Single comparator, no need for { '': exact }
+  testCases: [
+    { input: 'twenty-three', expected: 23 },
+    { input: 'one hundred', expected: 100 },
+  ],
+});
+
+// Works with arrays too
+const result = await didactic.eval({
+  executor: myListExtractor,
+  comparators: exact,
+  unorderedList: true,  // Enable Hungarian matching for unordered arrays
+  testCases: [
+    { input: 'numbers', expected: [1, 2, 3, 4] },
+  ],
+});
+```
+
+**2. A field mapping object** — Different comparators per field:
 
 ```typescript
 const result = await didactic.eval({
@@ -403,30 +429,22 @@ const result = await didactic.eval({
 });
 ```
 
-Use **`comparator`** (whole-object) when:
-- Your output is a **primitive value** (string, number, boolean)
-- You need **custom comparison logic** for the entire output
-- You want a **single comparator** applied uniformly
+Use **`comparatorOverride`** when you need:
+- Complete control over comparison logic
+- Custom cross-field validation
+- Whole-object semantic comparison that doesn't map to individual fields
 
 ```typescript
-// Primitive output
-const result = await didactic.eval({
-  executor: myNumberExtractor,
-  comparator: exact,
-  testCases: [
-    { input: 'twenty-three', expected: 23 },
-    { input: 'one hundred', expected: 100 },
-  ],
-});
-
 // Custom whole-object comparison
 const result = await didactic.eval({
   executor: myExecutor,
-  comparator: custom({
-    compare: (expected, actual) => {
-      return expected.id === actual.id && expected.status === actual.status;
-    },
-  }),
+  comparatorOverride: (expected, actual) => {
+    // Custom logic that considers multiple fields together
+    const statusMatch = expected.status === actual.status;
+    const idMatch = expected.id === actual.id;
+    const scoreClose = Math.abs(expected.score - actual.score) < 10;
+    return { passed: statusMatch && idMatch && scoreClose };
+  },
   testCases: [...],
 });
 ```

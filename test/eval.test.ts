@@ -461,10 +461,10 @@ describe('evaluate', () => {
       expect(result.testCases[0].fields['[2]'].actual).toBeUndefined();
     });
 
-    it('uses comparator for whole-object comparison', async () => {
+    it('uses comparatorOverride for whole-object comparison', async () => {
       const result = await evaluate<Input, number[]>({
         executor: async () => ({ output: [105, 210] }),
-        comparator: (expected, actual) => {
+        comparatorOverride: (expected, actual) => {
           // Check each element is within 10%
           if (!Array.isArray(expected) || !Array.isArray(actual)) return { passed: false };
           if (expected.length !== actual.length) return { passed: false };
@@ -499,6 +499,66 @@ describe('evaluate', () => {
       });
 
       expect(result.testCases[0].passed).toBe(false);
+    });
+  });
+
+  describe('single comparator mode', () => {
+    it('accepts a single comparator function for objects', async () => {
+      const result = await evaluate<Input, { a: number; b: number }>({
+        executor: async () => ({ output: { a: 1, b: 2 } }),
+        comparators: exact,  // Clean syntax instead of { '': exact }
+        testCases: [{ input: { id: 1 }, expected: { a: 1, b: 2 } }],
+      });
+
+      expect(result.testCases[0].passed).toBe(true);
+      expect(result.testCases[0].totalFields).toBe(1);
+      expect(result.testCases[0].fields['']).toBeDefined();
+      expect(result.testCases[0].fields[''].passed).toBe(true);
+    });
+
+    it('works with custom single comparator for arrays', async () => {
+      const result = await evaluate<Input, number[]>({
+        executor: async () => ({ output: [105, 210] }),
+        comparatorOverride: (expected, actual) => {
+          // Custom tolerance check for arrays (whole-object comparison)
+          if (!Array.isArray(expected) || !Array.isArray(actual)) return { passed: false };
+          if (expected.length !== actual.length) return { passed: false };
+          for (let i = 0; i < expected.length; i++) {
+            const diff = Math.abs(actual[i] - expected[i]) / expected[i];
+            if (diff > 0.1) return { passed: false };
+          }
+          return { passed: true };
+        },
+        testCases: [{ input: { id: 1 }, expected: [100, 200] }],
+      });
+
+      expect(result.testCases[0].passed).toBe(true);
+      expect(result.testCases[0].fields['']).toBeDefined();
+    });
+
+    it('normalizes to field mapping internally for unordered lists', async () => {
+      const result = await evaluate<Input, number[]>({
+        executor: async () => ({ output: [3, 1, 2] }),
+        comparators: exact,
+        unorderedList: true,
+        testCases: [{ input: { id: 1 }, expected: [1, 2, 3] }],
+      });
+
+      // Should match regardless of order
+      expect(result.testCases[0].passed).toBe(true);
+      // Array elements should be matched via Hungarian algorithm
+      expect(result.testCases[0].totalFields).toBeGreaterThan(0);
+    });
+
+    it('works with primitives', async () => {
+      const result = await evaluate<Input, number>({
+        executor: async () => ({ output: 42 }),
+        comparators: exact,
+        testCases: [{ input: { id: 1 }, expected: 42 }],
+      });
+
+      expect(result.testCases[0].passed).toBe(true);
+      expect(result.testCases[0].fields['']).toBeDefined();
     });
   });
 
@@ -552,11 +612,11 @@ describe('evaluate', () => {
     });
   });
 
-  describe('comparator mode (whole-object comparison)', () => {
+  describe('comparatorOverride mode (whole-object comparison)', () => {
     it('uses single comparator for entire output', async () => {
       const result = await evaluate<Input, { a: number; b: number }>({
         executor: async () => ({ output: { a: 1, b: 2 } }),
-        comparator: (expected, actual) => ({
+        comparatorOverride: (expected, actual) => ({
           passed: expected.a === actual.a && expected.b === actual.b,
         }),
         testCases: [{ input: { id: 1 }, expected: { a: 1, b: 2 } }],
@@ -570,7 +630,7 @@ describe('evaluate', () => {
     it('fails when comparator returns passed: false', async () => {
       const result = await evaluate<Input, { a: number }>({
         executor: async () => ({ output: { a: 999 } }),
-        comparator: (expected, actual) => ({
+        comparatorOverride: (expected, actual) => ({
           passed: expected.a === actual.a,
         }),
         testCases: [{ input: { id: 1 }, expected: { a: 1 } }],
@@ -583,7 +643,7 @@ describe('evaluate', () => {
     it('works with array outputs', async () => {
       const result = await evaluate<Input, number[]>({
         executor: async () => ({ output: [1, 2, 3] }),
-        comparator: (expected, actual) => ({
+        comparatorOverride: (expected, actual) => ({
           passed: JSON.stringify(expected) === JSON.stringify(actual),
         }),
         testCases: [{ input: { id: 1 }, expected: [1, 2, 3] }],
@@ -595,7 +655,7 @@ describe('evaluate', () => {
     it('works with primitive outputs', async () => {
       const result = await evaluate<Input, string>({
         executor: async () => ({ output: 'hello world' }),
-        comparator: (expected, actual) => ({
+        comparatorOverride: (expected, actual) => ({
           passed: actual.includes(expected),
         }),
         testCases: [{ input: { id: 1 }, expected: 'hello' }],
@@ -607,7 +667,7 @@ describe('evaluate', () => {
     it('respects perTestThreshold', async () => {
       const result = await evaluate<Input, { v: number }>({
         executor: async () => ({ output: { v: 1 } }),
-        comparator: () => ({ passed: true }),
+        comparatorOverride: () => ({ passed: true }),
         testCases: [{ input: { id: 1 }, expected: { v: 1 } }],
         perTestThreshold: 0.5,
       });
@@ -621,7 +681,7 @@ describe('evaluate', () => {
 
       const result = await evaluate<Input, typeof expected>({
         executor: async () => ({ output: actual }),
-        comparator: () => ({ passed: false }),
+        comparatorOverride: () => ({ passed: false }),
         testCases: [{ input: { id: 1 }, expected }],
       });
 
@@ -632,7 +692,7 @@ describe('evaluate', () => {
     it('aggregates results across multiple test cases', async () => {
       const result = await evaluate<Input, { v: number }>({
         executor: async (input) => ({ output: { v: input.id * 10 } }), // returns 10, 20, 30
-        comparator: (expected, actual) => ({ passed: expected.v === actual.v }),
+        comparatorOverride: (expected, actual) => ({ passed: expected.v === actual.v }),
         testCases: [
           { input: { id: 1 }, expected: { v: 10 } },  // pass: 10 === 10
           { input: { id: 2 }, expected: { v: 999 } }, // fail: 20 !== 999

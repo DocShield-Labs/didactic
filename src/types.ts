@@ -95,12 +95,19 @@ interface BaseEvalConfig<TInput = unknown, TOutput = unknown> {
 }
 
 /**
+ * Flexible comparators configuration.
+ * Accepts either a single comparator function or a field mapping object.
+ * Single comparator will apply the comparator to the object, primitive, list of objects, or list of primitives. If `unorderedList` is true, the comparator will be applied to the list of items in the array by similarity rather than index position.
+ */
+export type ComparatorsConfig = ComparatorMap | Comparator<any>;
+
+/**
  * Main eval configuration.
- * Either `comparators` (field mapping) OR `comparator` (whole-object) must be provided.
+ * Either `comparators` (field mapping or single function) OR `comparatorOverride` (whole-object) must be provided.
  */
 export type EvalConfig<TInput = unknown, TOutput = unknown> =
-  | (BaseEvalConfig<TInput, TOutput> & { comparators: ComparatorMap; comparator?: undefined })
-  | (BaseEvalConfig<TInput, TOutput> & { comparator: Comparator<TOutput>; comparators?: undefined });
+  | (BaseEvalConfig<TInput, TOutput> & { comparators: ComparatorsConfig; comparatorOverride?: undefined })
+  | (BaseEvalConfig<TInput, TOutput> & { comparatorOverride: Comparator<TOutput>; comparators?: undefined });
 
 /**
  * Result for a single field comparison.
