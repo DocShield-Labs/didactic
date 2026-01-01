@@ -43,11 +43,11 @@ console.log(`${result.passed}/${result.total} passed (${result.accuracy * 100}% 
 
 Didactic has three core components:
 
-1. **[Executors](#executors)** — Abstraction for running your LLM workflow (local function, HTTP endpoint, or Temporal workflow)
-2. **[Comparators](#comparators)** — Field-level comparison logic that handles real-world data messiness
-3. **[Optimization](#didacticoptimizeevalconfig-optimizeconfig)** — Iterative prompt improvement loop to hit target success rates
+1. **[Executors](#executors)** — Abstraction for running your LLM workflow (local function or HTTP endpoint)
+2. **[Comparators](#comparators)** — Functions to compare the executor's output against your test case's expected output.
+3. **[Optimization](#didacticoptimizeevalconfig-optimizeconfig)** — Iterative prompt improvement loop to hit a target success rates
 
-**How they work together:** Your executor runs each test case's input through your LLM workflow, returning output that matches your test case's expected output. Comparators then evaluate each field of the output against expected values, producing pass/fail results.
+**How they work together:** Your executor runs each test case's input through your LLM workflow, returning output that matches your test case's expected output shape. Comparators then evaluate each field of the output against expected values, producing pass/fail results.
 
 In optimization mode, these results feed into an LLM that analyzes failures and generates improved system prompts—repeating until your target success rate or iteration/cost limit is reached.
 

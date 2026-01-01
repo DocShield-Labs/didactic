@@ -45,6 +45,15 @@ export async function optimize<TInput, TOutput>(
   evalConfig: EvalConfig<TInput, TOutput>,
   config: OptimizeConfig
 ): Promise<OptimizeResult<TInput, TOutput>> {
+  if (!config.apiKey) { 
+    throw new Error('apiKey is required');
+  }
+  if (!config.systemPrompt) {
+    throw new Error('systemPrompt is required');
+  }
+  if (config.targetSuccessRate < 0 || config.targetSuccessRate > 1) {
+    throw new Error('targetSuccessRate must be between 0 and 1');
+  }
 
   const iterationLogs: IterationLog[] = [];
 
@@ -193,9 +202,18 @@ export async function optimize<TInput, TOutput>(
     logPatchGenerationStart(failures.length);
     const patchStart = Date.now();
 
-    const patchResults = await Promise.all(
+    const patchSettled = await Promise.allSettled(
       failures.map((failure) => generatePatch(failure, currentPrompt, config, regressed ? previousPrompt : undefined, regressed ? bestPromptFailures : undefined))
     );
+    const patchResults = patchSettled
+      .filter((r): r is PromiseFulfilledResult<LLMResult> => r.status === 'fulfilled')
+      .map((r) => r.value);
+
+    if (patchResults.length === 0) {
+      recordIteration(i, currentPrompt, result, result.cost, Date.now() - iterationStart, iterInputTokens, iterOutputTokens);
+      continue;
+    }
+
     const patches = patchResults.map((r) => r.text);
     const patchCost = patchResults.reduce((sum, r) => sum + r.cost, 0);
     const patchInputTokens = patchResults.reduce((sum, r) => sum + r.inputTokens, 0);
@@ -244,76 +262,64 @@ export async function optimize<TInput, TOutput>(
 async function callLLM(messages: Message[], config: OptimizeConfig, useThinking: boolean = false): Promise<LLMResult> {
   const spec = PROVIDER_SPECS[config.provider];
 
-  // Anthropic
-  if (config.provider.startsWith('anthropic')) {
+  try {
+    // Anthropic
+    if (config.provider.startsWith('anthropic')) {
+      const client = new Anthropic({ apiKey: config.apiKey });
+      const streamOptions: Parameters<typeof client.messages.stream>[0] = {
+        model: spec.model,
+        max_tokens: spec.maxTokens,
+        system: messages.find((m) => m.role === 'system')?.content,
+        messages: messages
+          .filter((m) => m.role !== 'system')
+          .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+      };
 
-    // Create client
-    const client = new Anthropic({ apiKey: config.apiKey });
-    const streamOptions: Parameters<typeof client.messages.stream>[0] = {
-      model: spec.model,
-      max_tokens: spec.maxTokens,
-      system: messages.find((m) => m.role === 'system')?.content,
-      messages: messages
-        .filter((m) => m.role !== 'system')
-        .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-    };
+      if (useThinking) {
+        streamOptions.thinking = { type: 'enabled', budget_tokens: ANTHROPIC_THINKING_BUDGET_TOKENS };
+      }
 
-    // Add thinking if enabled
-    if (useThinking) {
-      streamOptions.thinking = { type: 'enabled', budget_tokens: ANTHROPIC_THINKING_BUDGET_TOKENS };
+      const stream = client.messages.stream(streamOptions);
+      const finalMessage = await stream.finalMessage();
+
+      const textBlocks = finalMessage.content
+        .filter((block) => block.type === 'text')
+        .map((block) => block.text);
+      const text = textBlocks.length > 0 ? textBlocks.join(' ') : '';
+      const inputTokens = finalMessage.usage.input_tokens;
+      const outputTokens = finalMessage.usage.output_tokens;
+      const cost = (inputTokens * spec.costPerMillionInput + outputTokens * spec.costPerMillionOutput) / TOKENS_PER_MILLION;
+
+      return { text, cost, inputTokens, outputTokens };
     }
 
-    // Stream response
-    const stream = client.messages.stream(streamOptions);
-    const finalMessage = await stream.finalMessage();
+    // OpenAI
+    if (config.provider.startsWith('openai')) {
+      const client = new OpenAI({ apiKey: config.apiKey });
+      const completionOptions: OpenAI.ChatCompletionCreateParamsNonStreaming = {
+        model: spec.model,
+        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        max_completion_tokens: spec.maxTokens,
+      };
 
-    // Extract text
-    const textBlocks = finalMessage.content
-      .filter((block) => block.type === 'text')
-      .map((block) => block.text);
-    const text = textBlocks.length > 0 ? textBlocks.join(' ') : '';
+      if (useThinking) {
+        completionOptions.reasoning_effort = 'xhigh';
+      }
 
-    // Extract input and output tokens
-    const inputTokens = finalMessage.usage.input_tokens;
-    const outputTokens = finalMessage.usage.output_tokens;
+      const response = await client.chat.completions.create(completionOptions);
+      const text = response.choices[0].message.content ?? '';
+      const inputTokens = response.usage?.prompt_tokens ?? 0;
+      const outputTokens = response.usage?.completion_tokens ?? 0;
+      const cost = (inputTokens * spec.costPerMillionInput + outputTokens * spec.costPerMillionOutput) / TOKENS_PER_MILLION;
 
-    // Calculate cost
-    const cost = (inputTokens * spec.costPerMillionInput + outputTokens * spec.costPerMillionOutput) / TOKENS_PER_MILLION;
-
-    return { text, cost, inputTokens, outputTokens };
-  }
-
-  // OpenAI
-  if (config.provider.startsWith('openai')) {
-    // Create client
-    const client = new OpenAI({ apiKey: config.apiKey });
-    const completionOptions: OpenAI.ChatCompletionCreateParamsNonStreaming = {
-      model: spec.model,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
-      max_completion_tokens: spec.maxTokens,
-    };
-
-    // Add thinking if enabled
-    if (useThinking) {
-      completionOptions.reasoning_effort = 'xhigh';
+      return { text, cost, inputTokens, outputTokens };
     }
-    // Get response
-    const response = await client.chat.completions.create(completionOptions);
 
-    // Extract text
-    const text = response.choices[0].message.content ?? '';
-
-    // Extract input and output tokens
-    const inputTokens = response.usage?.prompt_tokens ?? 0;
-    const outputTokens = response.usage?.completion_tokens ?? 0;
-
-    // Calculate cost
-    const cost = (inputTokens * spec.costPerMillionInput + outputTokens * spec.costPerMillionOutput) / TOKENS_PER_MILLION;
-
-    return { text, cost, inputTokens, outputTokens };
+    throw new Error(`Unsupported provider: ${config.provider}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`LLM call failed (${spec.model}): ${message}`);
   }
-
-  throw new Error(`Unsupported provider: ${config.provider}`);
 }
 
 async function generatePatch(
