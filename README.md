@@ -1,21 +1,23 @@
 # Didactic
 
+[![CI](https://github.com/DocShield-Labs/didactic/actions/workflows/ci.yml/badge.svg)](https://github.com/DocShield-Labs/didactic/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/@docshield/didactic.svg)](https://www.npmjs.com/package/@docshield/didactic)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Eval and optimization framework for LLM workflows.
 
 ## Installation
 
 ```bash
-# Build and publish locally
-npm run build && yalc publish
-
-# In your project
-yalc add didactic
+npm install @docshield/didactic
 ```
+
+Requires Node.js >= 18.0.0
 
 ## Quick Start
 
 ```typescript
-import { didactic, within, oneOf, exact } from 'didactic';
+import { didactic, within, oneOf, exact } from '@docshield/didactic';
 
 const result = await didactic.eval({
   executor: didactic.endpoint('https://api.example.com/extract'),
@@ -41,9 +43,109 @@ console.log(`${result.passed}/${result.total} passed (${result.accuracy * 100}% 
 
 Didactic has three core components:
 
-1. **Executors** — Abstraction for running your LLM workflow (local function, HTTP endpoint, or Temporal workflow)
-2. **Comparators** — Field-level comparison logic that handles real-world data messiness
-3. **Optimization** — Iterative prompt improvement loop to hit target success rates
+1. **[Executors](#executors)** — Abstraction for running your LLM workflow (local function, HTTP endpoint, or Temporal workflow)
+2. **[Comparators](#comparators)** — Field-level comparison logic that handles real-world data messiness
+3. **[Optimization](#didacticoptimizeevalconfig-optimizeconfig)** — Iterative prompt improvement loop to hit target success rates
+
+**How they work together:** Your executor runs each test case's input through your LLM workflow, returning output that matches your test case's expected output. Comparators then evaluate each field of the output against expected values, producing pass/fail results.
+
+In optimization mode, these results feed into an LLM that analyzes failures and generates improved system prompts—repeating until your target success rate or iteration/cost limit is reached.
+
+
+#### Eval Flow
+
+```mermaid
+flowchart LR
+    subgraph Input ["Input"]
+        TC[Test Cases]
+        EX[Executor]
+        CMP[Comparators]
+        SP[System Prompt]
+    end
+
+    subgraph Execution ["Execution"]
+        CEX[Call Executor]
+        CF[compareFields]
+    end
+
+    subgraph Output ["Output"]
+        FR[FieldResults]
+        TCR[TestCaseResult]
+        ER[EvalResult]
+    end
+
+    TC -->|input| CEX
+    EX --> CEX
+    SP -.-> CEX
+    CEX -->|actual| CF
+    TC -->|expected| CF
+    CMP --> CF
+    CF --> FR
+    FR --> TCR
+    TCR --> ER
+
+    linkStyle default stroke:#000000
+    style Input fill:#D4D8DB,stroke:#6D88B4,color:#000B33
+    style Execution fill:#D4D8DB,stroke:#6D88B4,color:#000B33
+    style Output fill:#D4D8DB,stroke:#6D88B4,color:#000B33
+    style TC fill:#BFD7FF,stroke:#6D88B4,color:#000B33
+    style EX fill:#BFD7FF,stroke:#6D88B4,color:#000B33
+    style CMP fill:#BFD7FF,stroke:#6D88B4,color:#000B33
+    style SP fill:#BFD7FF,stroke:#6D88B4,color:#000B33
+    style CEX fill:#BFD7FF,stroke:#6D88B4,color:#000B33
+    style CF fill:#BFD7FF,stroke:#6D88B4,color:#000B33
+    style FR fill:#BFD7FF,stroke:#6D88B4,color:#000B33
+    style TCR fill:#BFD7FF,stroke:#6D88B4,color:#000B33
+    style ER fill:#CDF1E6,stroke:#6D88B4,color:#000B33
+```
+
+#### Optimize Flow
+
+```mermaid
+flowchart TB
+    subgraph Config ["Config"]
+        IP[Initial Prompt]
+        TARGET[targetSuccessRate]
+        LIMITS[maxIterations / maxCost]
+    end
+
+    IP --> EVAL
+
+    subgraph Loop ["Optimization Loop"]
+        EVAL[Run Eval] --> CHECK{Target reached?}
+        CHECK -->|Yes| SUCCESS[Return optimized prompt]
+        CHECK -->|No| LIMIT{Limits exceeded?}
+        LIMIT -->|Yes| BEST[Return best prompt]
+        LIMIT -->|No| FAIL[Extract failures]
+        FAIL --> PATCH[Generate patches]
+        PATCH --> MERGE[Merge patches]
+        MERGE --> UPDATE[New Prompt]
+        UPDATE --> EVAL
+    end
+
+    TARGET --> CHECK
+    LIMITS --> LIMIT
+
+    SUCCESS --> OUT[OptimizeResult]
+    BEST --> OUT
+
+    linkStyle default stroke:#000000
+    style Config fill:#D4D8DB,stroke:#6D88B4,color:#000B33
+    style Loop fill:#D4D8DB,stroke:#6D88B4,color:#000B33
+    style IP fill:#BFD7FF,stroke:#6D88B4,color:#000B33
+    style TARGET fill:#BFD7FF,stroke:#6D88B4,color:#000B33
+    style LIMITS fill:#BFD7FF,stroke:#6D88B4,color:#000B33
+    style EVAL fill:#BFD7FF,stroke:#6D88B4,color:#000B33
+    style FAIL fill:#BFD7FF,stroke:#6D88B4,color:#000B33
+    style PATCH fill:#BFD7FF,stroke:#6D88B4,color:#000B33
+    style MERGE fill:#BFD7FF,stroke:#6D88B4,color:#000B33
+    style UPDATE fill:#BFD7FF,stroke:#6D88B4,color:#000B33
+    style CHECK fill:#FFEDE0,stroke:#6D88B4,color:#000B33
+    style LIMIT fill:#FFEDE0,stroke:#6D88B4,color:#000B33
+    style SUCCESS fill:#CDF1E6,stroke:#6D88B4,color:#000B33
+    style BEST fill:#CDF1E6,stroke:#6D88B4,color:#000B33
+    style OUT fill:#CDF1E6,stroke:#6D88B4,color:#000B33
+```
 
 ---
 
@@ -59,22 +161,212 @@ const result = await didactic.eval(config);
 
 #### EvalConfig
 
+| Property | Type | Kind | Required | Default | Description |
+|----------|------|------|----------|---------|-------------|
+| `executor` | `Executor<TInput, TOutput>` | Object | **Yes** | — | Function that executes your LLM workflow. Receives input and optional system prompt, returns structured output. |
+| `testCases` | `TestCase<TInput, TOutput>[]` | Array | **Yes** | — | Array of `{ input, expected }` pairs. Each test case runs through the executor and compares output to expected. |
+| `comparators` | `ComparatorMap` | Object | **One of** | — | Record of field names to comparators. Use when you want different comparison logic per field. |
+| `comparator` | `Comparator<TOutput>` | Function | **One of** | — | Single comparator for the entire output object. Use when you need custom whole-object comparison logic. |
+| `systemPrompt` | `string` | Primitive | No | — | System prompt passed to the executor. Required if using optimization. |
+| `perTestThreshold` | `number` | Primitive | No | `1.0` | Minimum field pass rate for a test case to pass (0.0–1.0). At default 1.0, all fields must pass. Set to 0.8 to pass if 80% of fields match. |
+| `unorderedList` | `boolean` | Primitive | No | `false` | Enable Hungarian matching for array comparison. When true, arrays are matched by similarity rather than index position. Used when your expected output is an array of things. |
+| `rateLimitBatch` | `number` | Primitive | No | — | Number of test cases to run concurrently. Use with `rateLimitPause` for rate-limited APIs. |
+| `rateLimitPause` | `number` | Primitive | No | — | Seconds to wait between batches. Pairs with `rateLimitBatch`. |
+| `optimize` | `OptimizeConfig` | Object | No | — | Inline optimization config. When provided, triggers optimization mode instead of single eval. |
+
+---
+
+### `didactic.optimize(evalConfig, optimizeConfig)`
+
+Run optimization as a separate call instead of inline.
+
+```typescript
+const result = await didactic.optimize(evalConfig, optimizeConfig);
+```
+
+```typescript
+const config = {
+  ...evalConfig,
+  optimize: {
+    systemPrompt: 'Extract information from an invoice.',
+    targetSuccessRate: 0.9,
+    apiKey: 'your-llm-provider-api-key',
+    provider: LLMProviders.openai_gpt5,
+    maxIterations: 10,
+    maxCost: 10,
+    storeLogs: true,
+    thinking: true,
+  },
+}
+
+#### OptimizeConfig
+
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `executor` | `Executor<TInput, TOutput>` | **Yes** | — | Function that executes your LLM workflow. Receives input and optional system prompt, returns structured output. |
-| `testCases` | `TestCase<TInput, TOutput>[]` | **Yes** | — | Array of `{ input, expected }` pairs. Each test case runs through the executor and compares output to expected. |
-| `comparators` | `ComparatorMap` | **One of** | — | Record of field names to comparators. Use when you want different comparison logic per field. |
-| `comparator` | `Comparator<TOutput>` | **One of** | — | Single comparator for the entire output object. Use when you need custom whole-object comparison logic. |
-| `systemPrompt` | `string` | No | — | System prompt passed to the executor. Required if using optimization. |
-| `perTestThreshold` | `number` | No | `1.0` | Minimum field pass rate for a test case to pass (0.0–1.0). At default 1.0, all fields must pass. Set to 0.8 to pass if 80% of fields match. |
-| `unorderedList` | `boolean` | No | `false` | Enable Hungarian matching for array comparison. When true, arrays are matched by similarity rather than index position. |
-| `rateLimitBatch` | `number` | No | — | Number of test cases to run concurrently. Use with `rateLimitPause` for rate-limited APIs. |
-| `rateLimitPause` | `number` | No | — | Seconds to wait between batches. Pairs with `rateLimitBatch`. |
-| `optimize` | `OptimizeConfig` | No | — | Inline optimization config. When provided, triggers optimization mode instead of single eval. |
+| `systemPrompt` | `string` | **Yes** | — | Initial system prompt to optimize. This is the starting point that the optimizer will iteratively improve. |
+| `targetSuccessRate` | `number` | **Yes** | — | Target success rate to achieve (0.0–1.0). Optimization stops when this rate is reached. |
+| `apiKey` | `string` | **Yes** | — | API key for the LLM provider used by the optimizer (not your workflow's LLM). |
+| `provider` | `LLMProviders` | **Yes** | — | LLM provider the optimizer uses to analyze failures and generate improved prompts. |
+| `maxIterations` | `number` | No | `5` | Maximum optimization iterations before stopping, even if target not reached. |
+| `maxCost` | `number` | No | — | Maximum cost budget in dollars. Optimization stops if cumulative cost exceeds this. |
+| `storeLogs` | `boolean \| string` | No | — | Save optimization logs. `true` uses default path (`./didact-logs/optimize_<timestamp>/summary.md`), or provide custom summary path. |
+| `thinking` | `boolean` | No | — | Enable extended thinking mode for deeper analysis (provider must support it). |
 
-#### `comparators` vs `comparator`
+---
 
-Use **`comparators`** (field-level) when your output is an object and you want different comparison logic per field:
+## Executors
+
+Executors abstract your LLM workflow from the evaluation harness. Whether your workflow runs locally, calls a remote API, or orchestrates Temporal activities, executors provide a consistent interface: take input + optional system prompt, return structured output.
+
+This separation enables:
+- **Swap execution strategies** — Switch between local/remote without changing tests
+- **Dynamic prompt injection** — System prompts flow through for optimization
+- **Cost tracking** — Aggregate execution costs across test runs
+
+### `endpoint(url, config?)`
+
+Create an executor that calls an HTTP endpoint. The executor sends input + systemPrompt as the request body and expects structured JSON back.
+
+```typescript
+import { endpoint } from '@docshield/didactic';
+
+const executor = endpoint('https://api.example.com/workflow', {
+  headers: { Authorization: 'Bearer token' },
+  timeout: 60000,
+});
+```
+
+#### EndpointConfig
+
+| Property | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `method` | `'POST' \| 'GET'` | No | `'POST'` | HTTP method for the request. |
+| `headers` | `Record<string, string>` | No | `{}` | Headers to include (auth tokens, content-type overrides, etc). |
+| `mapResponse` | `(response: any) => TOutput` | No | — | Transform the raw response to your expected output shape. Use when your API wraps results. |
+| `mapAdditionalContext` | `(response: any) => unknown` | No | — | Extract metadata (logs, debug info) from response for inspection. |
+| `mapCost` | `(response: any) => number` | No | — | Extract execution cost from response (e.g., token counts in headers). |
+| `timeout` | `number` | No | `30000` | Request timeout in milliseconds. |
+
+---
+
+### `fn(config)`
+
+Create an executor from a local async function. Use this to write a custom executor for your LLM workflow.
+
+```typescript
+import { fn } from '@docshield/didactic';
+
+const executor = fn({
+  fn: async (input, systemPrompt) => {
+    return await myLLMCall(input, systemPrompt);
+  },
+});
+```
+
+#### FnConfig
+
+| Property | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `fn` | `(input: TInput, systemPrompt?: string) => Promise<TRaw>` | **Yes** | — | Async function that executes your workflow. Receives test input and optional system prompt. |
+| `mapResponse` | `(result: TRaw) => TOutput` | No | — | Transform raw result into the output shape to compare. Without this, raw result is used directly. |
+| `mapAdditionalContext` | `(result: TRaw) => unknown` | No | — | Extract metadata from the raw result for debugging. |
+| `mapCost` | `(result: TRaw) => number` | No | — | Extract cost from the raw result (if your function tracks it). |
+
+---
+
+### Response Mapping
+
+Executors support optional mapping functions to extract and transform data from responses:
+
+#### `mapResponse`
+
+Transform the raw response into the output shape you want compared against `expected`.
+
+```typescript
+// For endpoint: API returns { data: { result: {...} }, metadata: {...} }
+const executor = endpoint('https://api.example.com/extract', {
+  mapResponse: (response) => response.data.result,
+});
+
+// For fn: Workflow returns full response, we only want specific fields
+const executor = fn({
+  fn: async (input, systemPrompt) => {
+    return await startWorkflow({ ... });  // Returns { documentType, cost, confidence, ... }
+  },
+  mapResponse: (result) => ({ documentType: result.documentType }),
+  mapCost: (result) => result.cost,
+  mapAdditionalContext: (result) => ({ confidence: result.confidence }),
+});
+```
+
+Without `mapResponse`:
+- **endpoint**: assumes response is `{ output: ... }` or the raw response itself
+- **fn**: uses the function's return value directly as output
+
+#### `mapAdditionalContext`
+
+Extract additional context from the output to be passed to the optimizer prompt. You can use this to include additional information about the run that could be useful for the optimizer understand the failure and generate a better prompt.
+
+```typescript
+// For endpoint: receives the raw API response
+const executor = endpoint('https://api.example.com/extract', {
+  mapAdditionalContext: (response) => ({
+    fileNames: response.fileNames,
+    parsedFiles: response.parsedFiles,
+  }),
+});
+
+// For fn: receives the function's return value
+const executor = fn({
+  fn: async (input, systemPrompt) => {
+    const result = await myLLMCall(input, systemPrompt);
+    return result;
+  },
+  mapAdditionalContext: (result) => ({
+    tokensUsed: result.usage?.total_tokens,
+    finishReason: result.finish_reason,
+  }),
+});
+```
+
+#### `mapCost`
+
+Extract execution cost from responses for budget tracking. Returns a number representing cost (typically in dollars). Aggregated in `EvalResult.cost` and `OptimizeResult.totalCost`.
+
+```typescript
+// For endpoint: extract from response body or calculate from token counts
+const executor = endpoint('https://api.example.com/extract', {
+  mapCost: (response) => {
+    const tokens = response.usage?.total_tokens ?? 0;
+    return tokens * 0.00001;  // $0.01 per 1000 tokens
+  },
+});
+
+// For fn: calculate from the result
+const executor = fn({
+  fn: async (input, systemPrompt) => {
+    const result = await anthropic.messages.create({ ... });
+    return result;
+  },
+  mapCost: (result) => {
+    const inputCost = result.usage.input_tokens * (3 / 1_000_000);   // Sonnet input
+    const outputCost = result.usage.output_tokens * (15 / 1_000_000); // Sonnet output
+    return inputCost + outputCost;
+  },
+});
+```
+
+---
+
+## Comparators
+
+Comparators bridge the gap between messy LLM output and semantic correctness. Rather than requiring exact string matches, comparators handle real-world data variations—currency formatting, date formats, name suffixes, numeric tolerance—while maintaining semantic accuracy.
+
+Each comparator returns a `passed` boolean and a `similarity` score (0.0–1.0). The pass/fail determines test results, while similarity enables Hungarian matching for unordered array comparison.
+
+### `comparators` vs `comparator`
+
+Use **`comparators`** (field-level) when your output is an object or list of objects and you want different comparison logic per field:
 
 ```typescript
 const result = await didactic.eval({
@@ -121,95 +413,7 @@ const result = await didactic.eval({
 });
 ```
 
----
-
-### `didactic.optimize(evalConfig, optimizeConfig)`
-
-Run optimization as a separate call instead of inline.
-
-```typescript
-const result = await didactic.optimize(evalConfig, optimizeConfig);
-```
-
-#### OptimizeConfig
-
-| Property | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `systemPrompt` | `string` | **Yes** | — | Initial system prompt to optimize. This is the starting point that the optimizer will iteratively improve. |
-| `targetSuccessRate` | `number` | **Yes** | — | Target success rate to achieve (0.0–1.0). Optimization stops when this rate is reached. |
-| `apiKey` | `string` | **Yes** | — | API key for the LLM provider used by the optimizer (not your workflow's LLM). |
-| `provider` | `LLMProviders` | **Yes** | — | LLM provider the optimizer uses to analyze failures and generate improved prompts. |
-| `maxIterations` | `number` | No | `5` | Maximum optimization iterations before stopping, even if target not reached. |
-| `maxCost` | `number` | No | — | Maximum cost budget in dollars. Optimization stops if cumulative cost exceeds this. |
-| `storeLogs` | `boolean \| string` | No | — | Save optimization logs. `true` uses default path (`./didact-logs/optimize_<timestamp>/summary.md`), or provide custom summary path. |
-| `thinking` | `boolean` | No | — | Enable extended thinking mode for deeper analysis (provider must support it). |
-
----
-
-## Executors
-
-Executors abstract your LLM workflow from the evaluation harness. Whether your workflow runs locally, calls a remote API, or orchestrates Temporal activities, executors provide a consistent interface: take input + optional system prompt, return structured output.
-
-This separation enables:
-- **Swap execution strategies** — Switch between local/remote without changing tests
-- **Dynamic prompt injection** — System prompts flow through for optimization
-- **Cost tracking** — Aggregate execution costs across test runs
-
-### `endpoint(url, config?)`
-
-Create an executor that calls an HTTP endpoint. The executor sends input + systemPrompt as the request body and expects structured JSON back.
-
-```typescript
-import { endpoint } from 'didactic';
-
-const executor = endpoint('https://api.example.com/workflow', {
-  headers: { Authorization: 'Bearer token' },
-  timeout: 60000,
-});
-```
-
-#### EndpointConfig
-
-| Property | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `method` | `'POST' \| 'GET'` | No | `'POST'` | HTTP method for the request. |
-| `headers` | `Record<string, string>` | No | `{}` | Headers to include (auth tokens, content-type overrides, etc). |
-| `mapResponse` | `(response: any) => TOutput` | No | — | Transform the raw response to your expected output shape. Use when your API wraps results. |
-| `mapAdditionalContext` | `(response: any) => unknown` | No | — | Extract metadata (logs, debug info) from response for inspection. |
-| `mapCost` | `(response: any) => number` | No | — | Extract execution cost from response (e.g., token counts in headers). |
-| `timeout` | `number` | No | `30000` | Request timeout in milliseconds. |
-
----
-
-### `fn(config)`
-
-Create an executor from a local async function. Use this for direct LLM SDK calls, Temporal workflows, or any custom execution logic.
-
-```typescript
-import { fn } from 'didactic';
-
-const executor = fn({
-  fn: async (input, systemPrompt) => {
-    return await myLLMCall(input, systemPrompt);
-  },
-});
-```
-
-#### FnConfig
-
-| Property | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `fn` | `(input: TInput, systemPrompt?: string) => Promise<TOutput>` | **Yes** | — | Async function that executes your workflow. Receives test input and optional system prompt. |
-| `mapAdditionalContext` | `(result: TOutput) => unknown` | No | — | Extract metadata from the result for debugging. |
-| `mapCost` | `(result: TOutput) => number` | No | — | Extract cost from the result (if your function tracks it). |
-
----
-
-## Comparators
-
-Comparators bridge the gap between messy LLM output and semantic correctness. Rather than requiring exact string matches, comparators handle real-world data variations—currency formatting, date formats, name suffixes, numeric tolerance—while maintaining semantic accuracy.
-
-Each comparator returns a `passed` boolean and a `similarity` score (0.0–1.0). The pass/fail determines test results, while similarity enables Hungarian matching for unordered array comparison.
+### Built-in Comparators
 
 | Comparator | Signature | Description |
 |------------|-----------|-------------|
@@ -227,7 +431,7 @@ Each comparator returns a `passed` boolean and a `similarity` score (0.0–1.0).
 ### Examples
 
 ```typescript
-import { within, oneOf, exact, contains, presence, numeric, date, name, custom } from 'didactic';
+import { within, oneOf, exact, contains, presence, numeric, date, name, custom } from '@docshield/didactic';
 
 const comparators = {
   premium: within({ tolerance: 0.05 }),                      // 5% tolerance
@@ -255,7 +459,7 @@ const comparators = {
 Supported LLM providers for the optimizer:
 
 ```typescript
-import { LLMProviders } from 'didactic';
+import { LLMProviders } from '@docshield/didactic';
 ```
 
 | Value | Description |
@@ -335,17 +539,17 @@ Per-iteration detail, accessible via `OptimizeResult.iterations`.
 
 ```typescript
 // Namespace
-import { didactic } from 'didactic';
-import didactic from 'didactic';  // default export
+import { didactic } from '@docshield/didactic';
+import didactic from '@docshield/didactic';  // default export
 
 // Comparators
-import { exact, within, oneOf, contains, presence, numeric, date, name, custom } from 'didactic';
+import { exact, within, oneOf, contains, presence, numeric, date, name, custom } from '@docshield/didactic';
 
 // Executors
-import { endpoint, fn } from 'didactic';
+import { endpoint, fn } from '@docshield/didactic';
 
 // Functions
-import { evaluate, optimize } from 'didactic';
+import { evaluate, optimize } from '@docshield/didactic';
 
 // Types
 import type {
@@ -365,8 +569,18 @@ import type {
   IterationResult,
   EndpointConfig,
   FnConfig,
-} from 'didactic';
+} from '@docshield/didactic';
 
 // Enum
-import { LLMProviders } from 'didactic';
+import { LLMProviders } from '@docshield/didactic';
+```
+
+## Local Development
+
+```bash
+# Build and publish locally
+npm run build && yalc publish
+
+# In your project
+yalc add @docshield/didactic
 ```

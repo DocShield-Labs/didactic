@@ -1,5 +1,5 @@
 {
-  "name": "didactic",
+  "name": "@docshield/didactic",
   "version": "0.1.0",
   "description": "Eval/optimization framework for LLM workflows",
   "type": "module",
@@ -35,13 +35,21 @@
     "prompt-engineering",
     "ai",
     "anthropic",
-    "claude"
+    "claude",
+    "openai",
+    "gpt"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DocShield-Labs/didactic.git"
+  },
+  "homepage": "https://github.com/DocShield-Labs/didactic#readme",
+  "bugs": {
+    "url": "https://github.com/DocShield-Labs/didactic/issues"
+  },
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
-    "@supabase/supabase-js": "^2.88.0",
-    "@temporalio/client": "^1.14.0",
     "chrono-node": "^2.9.0",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
@@ -58,5 +66,8 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

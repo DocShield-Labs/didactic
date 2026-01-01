@@ -15,11 +15,15 @@ export interface EndpointConfig<TOutput = unknown> {
 
 /**
  * Configuration for function executor.
+ * @template TInput - Input type passed to the function
+ * @template TOutput - Output type after mapResponse (what gets compared)
+ * @template TRaw - Raw return type from fn (defaults to TOutput if no mapResponse)
  */
-export interface FnConfig<TInput, TOutput> {
-  fn: (input: TInput, systemPrompt?: string) => Promise<TOutput>;
-  mapAdditionalContext?: (result: TOutput) => unknown;
-  mapCost?: (result: TOutput) => number;
+export interface FnConfig<TInput, TOutput, TRaw = TOutput> {
+  fn: (input: TInput, systemPrompt?: string) => Promise<TRaw>;
+  mapResponse?: (result: TRaw) => TOutput;
+  mapAdditionalContext?: (result: TRaw) => unknown;
+  mapCost?: (result: TRaw) => number;
 }
 
 /**
@@ -104,14 +108,25 @@ export function endpoint<TInput = unknown, TOutput = unknown>(
  *   },
  * });
  * ```
+ *
+ * @example With mapResponse to extract output from a richer response:
+ * ```ts
+ * const executor = fn({
+ *   fn: async (input, systemPrompt) => await startWorkflow({ ... }),
+ *   mapResponse: (result) => ({ documentType: result.documentType }),
+ *   mapCost: (result) => result.cost,
+ *   mapAdditionalContext: (result) => result.metadata,
+ * });
+ * ```
  */
-export function fn<TInput, TOutput extends object>(
-  config: FnConfig<TInput, TOutput>
+export function fn<TInput, TOutput extends object, TRaw = TOutput>(
+  config: FnConfig<TInput, TOutput, TRaw>
 ): Executor<TInput, TOutput> {
   return async (input: TInput, systemPrompt?: string): Promise<ExecutorResult<TOutput>> => {
-    const output = await config.fn(input, systemPrompt);
-    const additionalContext = config.mapAdditionalContext?.(output);
-    const cost = config.mapCost?.(output) ?? 0;
+    const raw = await config.fn(input, systemPrompt);
+    const output = config.mapResponse ? config.mapResponse(raw) : raw as unknown as TOutput;
+    const additionalContext = config.mapAdditionalContext?.(raw);
+    const cost = config.mapCost?.(raw) ?? 0;
     return { output, additionalContext, cost };
   };
 }
