@@ -198,6 +198,7 @@ const config = {
     thinking: true,
   },
 }
+```
 
 #### OptimizeConfig
 
@@ -209,19 +210,30 @@ const config = {
 | `provider` | `LLMProviders` | **Yes** | — | LLM provider the optimizer uses to analyze failures and generate improved prompts. |
 | `maxIterations` | `number` | No | `5` | Maximum optimization iterations before stopping, even if target not reached. |
 | `maxCost` | `number` | No | — | Maximum cost budget in dollars. Optimization stops if cumulative cost exceeds this. |
-| `storeLogs` | `boolean \| string` | No | — | Save optimization logs. `true` uses default path (`./didact-logs/optimize_<timestamp>/summary.md`), or provide custom summary path. |
+| `storeLogs` | `boolean \| string` | No | — | Save optimization logs. `true` uses default path (`./didactic-logs/optimize_<timestamp>/summary.md`), or provide custom summary path. |
 | `thinking` | `boolean` | No | — | Enable extended thinking mode for deeper analysis (provider must support it). |
 
 ---
 
 ## Executors
 
-Executors abstract your LLM workflow from the evaluation harness. Whether your workflow runs locally, calls a remote API, or orchestrates Temporal activities, executors provide a consistent interface: take input + optional system prompt, return structured output.
+Executors abstract your LLM workflow from the evaluation harness. Whether your workflow runs locally, calls a remote API, or orchestrates Temporal activities, executors provide a consistent interface: take input + optional system prompt, return expected output.
 
 This separation enables:
 - **Swap execution strategies** — Switch between local/remote without changing tests
 - **Dynamic prompt injection** — System prompts flow through for optimization
 - **Cost tracking** — Aggregate execution costs across test runs
+
+didactic provides two built-in executors:
+- `endpoint` for calling a remote API
+- `fn` for calling a local function
+
+For each of these, you will want to provide a `mapResponse` function to transform the raw response into the output shape you want compared against `expected`.
+You will also want to provide a `mapCost` function to extract the execution cost from the response.
+You may want to provide a `mapAdditionalContext` function to extract metadata from the response for debugging.
+
+Note: If you do not provide a `mapResponse` function, the executor will assume the response from the executor is the output you want to compare against `expected`.
+
 
 ### `endpoint(url, config?)`
 
@@ -233,6 +245,9 @@ import { endpoint } from '@docshield/didactic';
 const executor = endpoint('https://api.example.com/workflow', {
   headers: { Authorization: 'Bearer token' },
   timeout: 60000,
+  mapResponse: (response) => response.data.result,
+  mapCost: (response) => response.cost,
+  mapAdditionalContext: (response) => response.metadata,
 });
 ```
 
@@ -260,6 +275,9 @@ const executor = fn({
   fn: async (input, systemPrompt) => {
     return await myLLMCall(input, systemPrompt);
   },
+  mapResponse: (result) => result.output,
+  mapCost: (result) => result.usage.input_tokens * 0.000003 + result.usage.output_tokens * 0.000015,
+  mapAdditionalContext: (result) => ({ model: result.model, finishReason: result.stop_reason }),
 });
 ```
 
@@ -268,9 +286,9 @@ const executor = fn({
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `fn` | `(input: TInput, systemPrompt?: string) => Promise<TRaw>` | **Yes** | — | Async function that executes your workflow. Receives test input and optional system prompt. |
-| `mapResponse` | `(result: TRaw) => TOutput` | No | — | Transform raw result into the output shape to compare. Without this, raw result is used directly. |
-| `mapAdditionalContext` | `(result: TRaw) => unknown` | No | — | Extract metadata from the raw result for debugging. |
-| `mapCost` | `(result: TRaw) => number` | No | — | Extract cost from the raw result (if your function tracks it). |
+| `mapResponse` | `(result: TRaw) => TOutput` | No | — | Transform raw result from fn into the expected output shape to compare. Without this, raw result is used directly. |
+| `mapAdditionalContext` | `(result: TRaw) => unknown` | No | — | Map additional context about the run to pass to the optimizer prompt. |
+| `mapCost` | `(result: TRaw) => number` | No | — | Extract cost from the result (if your function tracks it). Used to track the total cost of the runs. |
 
 ---
 
@@ -280,7 +298,7 @@ Executors support optional mapping functions to extract and transform data from 
 
 #### `mapResponse`
 
-Transform the raw response into the output shape you want compared against `expected`.
+Transform the raw response into the expected output shape you want compared against `expected`.
 
 ```typescript
 // For endpoint: API returns { data: { result: {...} }, metadata: {...} }
@@ -300,7 +318,7 @@ const executor = fn({
 ```
 
 Without `mapResponse`:
-- **endpoint**: assumes response is `{ output: ... }` or the raw response itself
+- **endpoint**: uses the raw JSON response as output
 - **fn**: uses the function's return value directly as output
 
 #### `mapAdditionalContext`
@@ -338,7 +356,7 @@ Extract execution cost from responses for budget tracking. Returns a number repr
 const executor = endpoint('https://api.example.com/extract', {
   mapCost: (response) => {
     const tokens = response.usage?.total_tokens ?? 0;
-    return tokens * 0.00001;  // $0.01 per 1000 tokens
+    return tokens * 0.00001;  // assuming $0.01 per 1000 tokens
   },
 });
 
@@ -532,6 +550,138 @@ Per-iteration detail, accessible via `OptimizeResult.iterations`.
 | `total` | `number` | Total test cases in this iteration. |
 | `testCases` | `TestCaseResult[]` | Detailed test case results for this iteration. |
 | `cost` | `number` | Cost for this iteration. |
+
+---
+
+## Optimization Logs
+
+When `storeLogs` is enabled in `OptimizeConfig`, four files are written to the log folder after optimization completes:
+
+**Default path:** `./didactic-logs/optimize_<timestamp>/`
+
+| File | Description |
+|------|-------------|
+| `summary.md` | Human-readable report with configuration, metrics, and iteration progress |
+| `prompts.md` | All system prompts used in each iteration |
+| `rawData.json` | Complete iteration data for programmatic analysis |
+| `bestRun.json` | Detailed results from the best-performing iteration |
+
+### rawData.json
+
+Contains the complete optimization run data for programmatic analysis:
+
+```typescript
+interface OptimizationReport {
+  metadata: {
+    timestamp: string;              // ISO timestamp
+    model: string;                  // LLM model used
+    provider: string;               // Provider (anthropic, openai, etc)
+    thinking: boolean;              // Extended thinking enabled
+    targetSuccessRate: number;      // Target (0.0-1.0)
+    maxIterations: number | null;   // Max iterations or null
+    maxCost: number | null;         // Max cost budget or null
+    testCaseCount: number;          // Number of test cases
+    perTestThreshold: number;       // Per-test threshold (default 1.0)
+    rateLimitBatch?: number;        // Batch size for rate limiting
+    rateLimitPause?: number;        // Pause seconds between batches
+  };
+  summary: {
+    totalIterations: number;
+    totalDurationMs: number;
+    totalCost: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    startRate: number;              // Success rate at start
+    endRate: number;                // Success rate at end
+    targetMet: boolean;
+  };
+  best: {
+    iteration: number;              // Which iteration was best
+    successRate: number;            // Success rate (0.0-1.0)
+    passed: number;                 // Number of passing tests
+    total: number;                  // Total tests
+    fieldAccuracy: number;          // Field-level accuracy
+  };
+  iterations: Array<{
+    iteration: number;
+    successRate: number;
+    passed: number;
+    total: number;
+    correctFields: number;
+    totalFields: number;
+    fieldAccuracy: number;
+    cost: number;                   // Cost for this iteration
+    cumulativeCost: number;         // Total cost so far
+    durationMs: number;
+    inputTokens: number;
+    outputTokens: number;
+    failures: Array<{
+      testIndex: number;
+      input: unknown;
+      expected: unknown;
+      actual: unknown;
+      fields: Record<string, { expected: unknown; actual: unknown; passed: boolean }>;
+    }>;
+  }>;
+}
+```
+
+### bestRun.json
+
+Contains detailed results from the best-performing iteration, with test results categorized into failures, partial failures, and successes:
+
+```typescript
+interface BestRunReport {
+  metadata: {
+    iteration: number;              // Which iteration was best
+    model: string;
+    provider: string;
+    thinking: boolean;
+    targetSuccessRate: number;
+    perTestThreshold: number;
+    rateLimitBatch?: number;
+    rateLimitPause?: number;
+  };
+  results: {
+    successRate: number;            // Overall success rate
+    passed: number;                 // Passed tests
+    total: number;                  // Total tests
+    fieldAccuracy: number;          // Field-level accuracy
+    correctFields: number;
+    totalFields: number;
+  };
+  cost: {
+    iteration: number;              // Cost for this iteration
+    cumulative: number;             // Total cumulative cost
+  };
+  timing: {
+    durationMs: number;
+    inputTokens: number;
+    outputTokens: number;
+  };
+  failures: Array<{                 // Tests that didnt meet the configured perTestThreshold
+    testIndex: number;
+    input: unknown;
+    expected: unknown;
+    actual: unknown;
+    failedFields: Record<string, { expected: unknown; actual: unknown }>;
+  }>;
+  partialFailures: Array<{          // Tests that passed but have some failing fields
+    testIndex: number;
+    passRate: number;               // Percentage of fields passing
+    input: unknown;
+    expected: unknown;
+    actual: unknown;
+    failedFields: Record<string, { expected: unknown; actual: unknown }>;
+  }>;
+  successes: Array<{                // Tests with 100% field accuracy
+    testIndex: number;
+    input: unknown;
+    expected: unknown;
+    actual: unknown;
+  }>;
+}
+```
 
 ---
 

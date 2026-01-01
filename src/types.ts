@@ -75,7 +75,7 @@ export type OptimizeConfig = {
   maxIterations?: number;
   maxCost?: number;
   apiKey: string;
-  storeLogs?: boolean | string;  // true = "./didact-logs/optimize_<timestamp>/summary.md", string = custom path
+  storeLogs?: boolean | string;  // true = "./didactic-logs/optimize_<timestamp>/summary.md", string = custom path
   provider: LLMProviders;
   thinking?: boolean;
 };

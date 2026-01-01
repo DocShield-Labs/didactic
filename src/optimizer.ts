@@ -76,7 +76,7 @@ export async function optimize<TInput, TOutput>(
   let previousSuccessRate: number | undefined;
 
   // If enabled, store enriched logs to a folder
-  // Folder: ./didact-logs/optimize_<timestamp>/
+  // Folder: ./didactic-logs/optimize_<timestamp>/
   // Contains 4 files:
   // 1. summary.md - main report with configuration, metrics, and progress
   // 2. prompts.md - prompts used in each iteration
@@ -85,7 +85,7 @@ export async function optimize<TInput, TOutput>(
   const logPath = config.storeLogs
     ? (typeof config.storeLogs === 'string'
         ? config.storeLogs
-        : `./didact-logs/optimize_${startTime.getTime()}/summary.md`)
+        : `./didactic-logs/optimize_${startTime.getTime()}/summary.md`)
     : undefined;
 
   // Helper function to record iteration of the optimization loop

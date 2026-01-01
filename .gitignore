@@ -29,7 +29,7 @@ coverage/
 *.tsbuildinfo
 
 
-didact-logs/
+didactic-logs/
 
 yalc.lock
 yalc.sig

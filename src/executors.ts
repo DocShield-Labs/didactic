@@ -83,9 +83,8 @@ export function endpoint<TInput = unknown, TOutput = unknown>(
         return { output: mapResponse(data), additionalContext, cost };
       }
 
-      // Default response mapping assumes { output } structure
       return {
-        output: (data.output ?? data) as TOutput,
+        output: data as TOutput,
         additionalContext,
         cost,
       };

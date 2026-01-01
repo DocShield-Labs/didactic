@@ -726,7 +726,7 @@ export function writeFinalLogs(
   logContext: LogContext,
   success: boolean
 ): void {
-  // logPath is expected to be like: ./didact-logs/optimize_<timestamp>/summary.md
+  // logPath is expected to be like: ./didactic-logs/optimize_<timestamp>/summary.md
   const folderPath = path.dirname(logPath);
 
   // Create folder if it doesn't exist

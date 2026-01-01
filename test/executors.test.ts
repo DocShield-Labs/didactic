@@ -14,9 +14,7 @@ describe('endpoint', () => {
   });
 
   it('makes a POST request with input as body', async () => {
-    const mockResponse = {
-      output: { result: 'success' },
-    };
+    const mockResponse = { result: 'success' };
 
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -43,7 +41,7 @@ describe('endpoint', () => {
   it('uses custom headers', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ output: {} }),
+      json: () => Promise.resolve({}),
     });
 
     const executor = endpoint('https://api.example.com/workflow', {
@@ -97,7 +95,7 @@ describe('endpoint', () => {
       capturedSignal = options?.signal;
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ output: {} }),
+        json: () => Promise.resolve({}),
       });
     });
 
@@ -119,7 +117,7 @@ describe('endpoint', () => {
   it('supports GET method', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ output: { data: 'value' } }),
+      json: () => Promise.resolve({ data: 'value' }),
     });
 
     const executor = endpoint('https://api.example.com/workflow', {
@@ -139,7 +137,7 @@ describe('endpoint', () => {
   it('defaults to POST method when not specified', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ output: {} }),
+      json: () => Promise.resolve({}),
     });
 
     const executor = endpoint('https://api.example.com/workflow');
@@ -191,7 +189,7 @@ describe('endpoint', () => {
       capturedSignal = options?.signal as AbortSignal;
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ output: {} }),
+        json: () => Promise.resolve({}),
       });
     });
 
@@ -207,7 +205,7 @@ describe('endpoint', () => {
 
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ output: {} }),
+      json: () => Promise.resolve({}),
     });
 
     const executor = endpoint('https://api.example.com/workflow', { timeout: 5000 });
