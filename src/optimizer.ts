@@ -25,6 +25,7 @@ import {
   logMergeResult,
   logMergeStart,
   logOptimizationComplete,
+  logPatchGenerationFailures,
   logPatchGenerationResult,
   logPatchGenerationStart,
   logRegressionDetected,
@@ -73,7 +74,6 @@ export async function optimize<TInput, TOutput>(
 
   // Initialize prompts
   let currentPrompt = config.systemPrompt;
-  let previousPrompt: string | undefined = undefined;
   let bestPrompt = currentPrompt;
 
   // Best run trackers
@@ -163,7 +163,7 @@ export async function optimize<TInput, TOutput>(
     cumulativeCost += result.cost;
     logEvaluationResult(result, cumulativeCost, Date.now() - evalStart);
 
-    const regressed = previousPrompt !== undefined && result.successRate < bestSuccessRate;
+    const regressed = i > 1 && result.successRate < bestSuccessRate;
     if (regressed) {
       logRegressionDetected(bestSuccessRate);
     }
@@ -182,8 +182,6 @@ export async function optimize<TInput, TOutput>(
     }
 
     const failures = result.testCases.filter((tc) => !tc.passed);
-
-    // No failures, we're done
     if (failures.length === 0) {
       recordIteration(i, currentPrompt, result, result.cost, Date.now() - iterationStart, iterInputTokens, iterOutputTokens);
       return finalizeOptimization(true, currentPrompt);
@@ -203,11 +201,16 @@ export async function optimize<TInput, TOutput>(
     const patchStart = Date.now();
 
     const patchSettled = await Promise.allSettled(
-      failures.map((failure) => generatePatch(failure, currentPrompt, config, regressed ? previousPrompt : undefined, regressed ? bestPromptFailures : undefined))
+      failures.map((failure) => generatePatch(failure, currentPrompt, config, regressed ? bestPrompt : undefined, regressed ? bestPromptFailures : undefined))
     );
     const patchResults = patchSettled
       .filter((r): r is PromiseFulfilledResult<LLMResult> => r.status === 'fulfilled')
       .map((r) => r.value);
+
+    const failedPatchCount = patchSettled.filter((r) => r.status === 'rejected').length;
+    if (failedPatchCount > 0) {
+      logPatchGenerationFailures(failedPatchCount, failures.length);
+    }
 
     if (patchResults.length === 0) {
       recordIteration(i, currentPrompt, result, result.cost, Date.now() - iterationStart, iterInputTokens, iterOutputTokens);
@@ -215,6 +218,8 @@ export async function optimize<TInput, TOutput>(
     }
 
     const patches = patchResults.map((r) => r.text);
+
+    // Track patch cost and tokens
     const patchCost = patchResults.reduce((sum, r) => sum + r.cost, 0);
     const patchInputTokens = patchResults.reduce((sum, r) => sum + r.inputTokens, 0);
     const patchOutputTokens = patchResults.reduce((sum, r) => sum + r.outputTokens, 0);
@@ -251,7 +256,6 @@ export async function optimize<TInput, TOutput>(
     }
 
     previousSuccessRate = result.successRate;
-    previousPrompt = currentPrompt;
     currentPrompt = mergeResult.text;
   }
 

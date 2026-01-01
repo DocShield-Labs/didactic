@@ -314,6 +314,10 @@ export function logMergeResult(mergeCost: number, cumulativeCost: number, durati
   );
 }
 
+export function logPatchGenerationFailures(failedCount: number, totalCount: number): void {
+  console.log(`  ⚠ ${failedCount}/${totalCount} patch generations failed`);
+}
+
 export function logOptimizationComplete(
   bestSuccessRate: number,
   targetSuccessRate: number,

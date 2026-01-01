@@ -140,7 +140,7 @@ describe('evaluate', () => {
       expect(failedCase!.fields).toEqual({});
     });
 
-    it('continues evaluatening other test cases after one fails', async () => {
+    it('continues evaluating other test cases after one fails', async () => {
       let callCount = 0;
       const executor: Executor<Input, Output> = async () => {
         callCount++;
