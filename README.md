@@ -84,10 +84,10 @@ flowchart LR
     FR --> TCR
     TCR --> ER
 
-    linkStyle default stroke:#000000
-    style Input fill:#D4D8DB,stroke:#6D88B4,color:#000B33
-    style Execution fill:#D4D8DB,stroke:#6D88B4,color:#000B33
-    style Output fill:#D4D8DB,stroke:#6D88B4,color:#000B33
+    linkStyle default stroke:#FFFFFF
+    style Input fill:#343434,stroke:#6D88B4,color:#FFFFFF
+    style Execution fill:#343434,stroke:#6D88B4,color:#FFFFFF
+    style Output fill:#343434,stroke:#6D88B4,color:#FFFFFF
     style TC fill:#BFD7FF,stroke:#6D88B4,color:#000B33
     style EX fill:#BFD7FF,stroke:#6D88B4,color:#000B33
     style CMP fill:#BFD7FF,stroke:#6D88B4,color:#000B33
@@ -129,9 +129,9 @@ flowchart TB
     SUCCESS --> OUT[OptimizeResult]
     BEST --> OUT
 
-    linkStyle default stroke:#000000
-    style Config fill:#D4D8DB,stroke:#6D88B4,color:#000B33
-    style Loop fill:#D4D8DB,stroke:#6D88B4,color:#000B33
+    linkStyle default stroke:#FFFFFF
+    style Config fill:#343434,stroke:#6D88B4,color:#FFFFFF
+    style Loop fill:#343434,stroke:#6D88B4,color:#FFFFFF
     style IP fill:#BFD7FF,stroke:#6D88B4,color:#000B33
     style TARGET fill:#BFD7FF,stroke:#6D88B4,color:#000B33
     style LIMITS fill:#BFD7FF,stroke:#6D88B4,color:#000B33
