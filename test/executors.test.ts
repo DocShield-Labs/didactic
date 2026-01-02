@@ -14,9 +14,7 @@ describe('endpoint', () => {
   });
 
   it('makes a POST request with input as body', async () => {
-    const mockResponse = {
-      output: { result: 'success' },
-    };
+    const mockResponse = { result: 'success' };
 
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -33,7 +31,7 @@ describe('endpoint', () => {
         headers: expect.objectContaining({
           'Content-Type': 'application/json',
         }),
-        body: JSON.stringify({ id: '123' }),
+        body: JSON.stringify({ id: '123', systemPrompt: 'Do the thing' }),
       })
     );
 
@@ -43,7 +41,7 @@ describe('endpoint', () => {
   it('uses custom headers', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ output: {} }),
+      json: () => Promise.resolve({}),
     });
 
     const executor = endpoint('https://api.example.com/workflow', {
@@ -57,32 +55,6 @@ describe('endpoint', () => {
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: 'Bearer token123',
-        }),
-      })
-    );
-  });
-
-  it('uses mapRequest to transform the body', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ data: { result: 'ok' } }),
-    });
-
-    const executor = endpoint('https://api.example.com/workflow', {
-      mapRequest: (input, systemPrompt) => ({
-        customInput: input,
-        prompt: systemPrompt,
-      }),
-    });
-
-    await executor({ id: '123' }, 'prompt');
-
-    expect(fetch).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        body: JSON.stringify({
-          customInput: { id: '123' },
-          prompt: 'prompt',
         }),
       })
     );
@@ -123,7 +95,7 @@ describe('endpoint', () => {
       capturedSignal = options?.signal;
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ output: {} }),
+        json: () => Promise.resolve({}),
       });
     });
 
@@ -145,7 +117,7 @@ describe('endpoint', () => {
   it('supports GET method', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ output: { data: 'value' } }),
+      json: () => Promise.resolve({ data: 'value' }),
     });
 
     const executor = endpoint('https://api.example.com/workflow', {
@@ -165,7 +137,7 @@ describe('endpoint', () => {
   it('defaults to POST method when not specified', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ output: {} }),
+      json: () => Promise.resolve({}),
     });
 
     const executor = endpoint('https://api.example.com/workflow');
@@ -217,7 +189,7 @@ describe('endpoint', () => {
       capturedSignal = options?.signal as AbortSignal;
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ output: {} }),
+        json: () => Promise.resolve({}),
       });
     });
 
@@ -233,7 +205,7 @@ describe('endpoint', () => {
 
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ output: {} }),
+      json: () => Promise.resolve({}),
     });
 
     const executor = endpoint('https://api.example.com/workflow', { timeout: 5000 });

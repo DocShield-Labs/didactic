@@ -1,16 +1,16 @@
 {
-  "name": "didactic",
+  "name": "@docshield/didactic",
   "version": "0.1.0",
   "description": "Eval/optimization framework for LLM workflows",
   "type": "module",
   "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
   "exports": {
     ".": {
       "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
       },
       "require": {
         "types": "./dist/index.d.cts",
@@ -35,16 +35,27 @@
     "prompt-engineering",
     "ai",
     "anthropic",
-    "claude"
+    "claude",
+    "openai",
+    "gpt"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DocShield-Labs/didactic.git"
+  },
+  "homepage": "https://github.com/DocShield-Labs/didactic#readme",
+  "bugs": {
+    "url": "https://github.com/DocShield-Labs/didactic/issues"
+  },
   "license": "MIT",
   "dependencies": {
-    "@supabase/supabase-js": "^2.88.0",
+    "@anthropic-ai/sdk": "^0.71.2",
     "chrono-node": "^2.9.0",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "levenshtein": "^1.0.5",
-    "munkres-js": "^1.2.2"
+    "munkres-js": "^1.2.2",
+    "openai": "^6.15.0"
   },
   "devDependencies": {
     "@types/levenshtein": "^1.0.4",
@@ -54,6 +65,9 @@
     "vitest": "^2.0.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.19.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

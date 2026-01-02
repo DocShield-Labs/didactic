@@ -1,4 +1,5 @@
 import type { Executor, ExecutorResult } from './types.js';
+import { DEFAULT_ENDPOINT_TIMEOUT_MS } from './constants.js';
 
 /**
  * Configuration for endpoint executor.
@@ -6,18 +7,23 @@ import type { Executor, ExecutorResult } from './types.js';
 export interface EndpointConfig<TOutput = unknown> {
   method?: 'POST' | 'GET';
   headers?: Record<string, string>;
-  mapRequest?: (input: unknown, systemPrompt?: string) => unknown;
   mapResponse?: (response: any) => TOutput;
   mapAdditionalContext?: (response: any) => unknown;
+  mapCost?: (response: any) => number;
   timeout?: number;
 }
 
 /**
  * Configuration for function executor.
+ * @template TInput - Input type passed to the function
+ * @template TOutput - Output type after mapResponse (what gets compared)
+ * @template TRaw - Raw return type from fn (defaults to TOutput if no mapResponse)
  */
-export interface FnConfig<TInput, TOutput> {
-  fn: (input: TInput, systemPrompt?: string) => Promise<TOutput>;
-  mapAdditionalContext?: (result: TOutput) => unknown;
+export interface FnConfig<TInput, TOutput, TRaw = TOutput> {
+  fn: (input: TInput, systemPrompt?: string) => Promise<TRaw>;
+  mapResponse?: (result: TRaw) => TOutput;
+  mapAdditionalContext?: (result: TRaw) => unknown;
+  mapCost?: (result: TRaw) => number;
 }
 
 /**
@@ -37,14 +43,16 @@ export function endpoint<TInput = unknown, TOutput = unknown>(
   const {
     method = 'POST',
     headers = {},
-    mapRequest,
     mapResponse,
     mapAdditionalContext,
-    timeout = 30000,
+    mapCost,
+    timeout = DEFAULT_ENDPOINT_TIMEOUT_MS,
   } = config;
 
   return async (input: TInput, systemPrompt?: string): Promise<ExecutorResult<TOutput>> => {
-    const body = mapRequest ? mapRequest(input, systemPrompt) : input;
+    const body = typeof input === 'object' && input !== null
+      ? { ...input, systemPrompt }
+      : { input, systemPrompt };
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -69,15 +77,16 @@ export function endpoint<TInput = unknown, TOutput = unknown>(
 
       const data = await response.json();
       const additionalContext = mapAdditionalContext?.(data);
+      const cost = mapCost?.(data) ?? 0;
 
       if (mapResponse) {
-        return { output: mapResponse(data), additionalContext };
+        return { output: mapResponse(data), additionalContext, cost };
       }
 
-      // Default response mapping assumes { output } structure
       return {
-        output: (data.output ?? data) as TOutput,
+        output: data as TOutput,
         additionalContext,
+        cost,
       };
     } catch (error) {
       clearTimeout(timeoutId);
@@ -98,14 +107,26 @@ export function endpoint<TInput = unknown, TOutput = unknown>(
  *   },
  * });
  * ```
+ *
+ * @example With mapResponse to extract output from a richer response:
+ * ```ts
+ * const executor = fn({
+ *   fn: async (input, systemPrompt) => await startWorkflow({ ... }),
+ *   mapResponse: (result) => ({ documentType: result.documentType }),
+ *   mapCost: (result) => result.cost,
+ *   mapAdditionalContext: (result) => result.metadata,
+ * });
+ * ```
  */
-export function fn<TInput, TOutput extends object>(
-  config: FnConfig<TInput, TOutput>
+export function fn<TInput, TOutput extends object, TRaw = TOutput>(
+  config: FnConfig<TInput, TOutput, TRaw>
 ): Executor<TInput, TOutput> {
   return async (input: TInput, systemPrompt?: string): Promise<ExecutorResult<TOutput>> => {
-    const output = await config.fn(input, systemPrompt);
-    const additionalContext = config.mapAdditionalContext?.(output);
-    return { output, additionalContext };
+    const raw = await config.fn(input, systemPrompt);
+    const output = config.mapResponse ? config.mapResponse(raw) : raw as unknown as TOutput;
+    const additionalContext = config.mapAdditionalContext?.(raw);
+    const cost = config.mapCost?.(raw) ?? 0;
+    return { output, additionalContext, cost };
   };
 }
 

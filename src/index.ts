@@ -5,6 +5,7 @@ export type {
   ComparatorContext,
   ComparatorResult,
   ComparatorMap,
+  ComparatorsConfig,
   // Executor types
   Executor,
   ExecutorResult,
@@ -15,11 +16,14 @@ export type {
   TestCaseResult,
   EvalResult,
   // Optimizer types
-  OptimizerConfig,
-  OptimizeOptions,
+  Message,
+  OptimizeConfig,
   IterationResult,
   OptimizeResult,
 } from './types.js';
+
+// Re-export LLM provider enum
+export { LLMProviders } from './types.js';
 
 // Re-export executor config types
 export type { EndpointConfig, FnConfig } from './executors.js';
@@ -33,11 +37,29 @@ export { endpoint, fn, mock } from './executors.js';
 // Re-export eval
 export { evaluate } from './eval.js';
 
+// Re-export optimizer
+export { optimize } from './optimizer.js';
+
 // Main didact namespace
-import type { EvalConfig, EvalResult, Executor } from './types.js';
+import type { EvalConfig, EvalResult, Executor, OptimizeConfig, OptimizeResult } from './types.js';
 import type { EndpointConfig, FnConfig } from './executors.js';
 import { evaluate } from './eval.js';
+import { optimize as runOptimize } from './optimizer.js';
 import { endpoint as createEndpoint, fn as createFn } from './executors.js';
+
+/**
+ * Overloaded eval function with proper return type inference.
+ */
+function didacticEval<TInput, TOutput>(config: EvalConfig<TInput, TOutput> & { optimize: OptimizeConfig }): Promise<OptimizeResult<TInput, TOutput>>;
+function didacticEval<TInput, TOutput>(config: EvalConfig<TInput, TOutput> & { optimize?: undefined }): Promise<EvalResult<TInput, TOutput>>;
+function didacticEval<TInput, TOutput>(config: EvalConfig<TInput, TOutput>): Promise<EvalResult<TInput, TOutput> | OptimizeResult<TInput, TOutput>>;
+function didacticEval<TInput, TOutput>(config: EvalConfig<TInput, TOutput>): Promise<EvalResult<TInput, TOutput> | OptimizeResult<TInput, TOutput>> {
+  if (config.optimize) {
+    const { optimize, ...evalConfig } = config;
+    return runOptimize(evalConfig, optimize);
+  }
+  return evaluate(config);
+}
 
 /**
  * Main didactic namespace for fluent API.
@@ -67,10 +89,18 @@ import { endpoint as createEndpoint, fn as createFn } from './executors.js';
  */
 export const didactic = {
   /**
-   * Run an eval with the given configuration.
+   * Run an eval (or optimization if optimize config is present).
    */
-  eval<TInput, TOutput>(config: EvalConfig<TInput, TOutput>): Promise<EvalResult<TInput, TOutput>> {
-    return evaluate(config);
+  eval: didacticEval,
+
+  /**
+   * Run optimization to improve a system prompt.
+   */
+  optimize<TInput, TOutput>(
+    evalConfig: EvalConfig<TInput, TOutput>,
+    config: OptimizeConfig
+  ): Promise<OptimizeResult<TInput, TOutput>> {
+    return runOptimize(evalConfig, config);
   },
 
   /**
