@@ -54,50 +54,7 @@ In optimization mode, these results feed into an LLM that analyzes failures and 
 
 #### Eval Flow
 
-```mermaid
-flowchart LR
-    subgraph Input ["Input"]
-        TC[Test Cases]
-        EX[Executor]
-        CMP[Comparators]
-        SP[System Prompt]
-    end
-
-    subgraph Execution ["Execution"]
-        CEX[Call Executor]
-        CF[compareFields]
-    end
-
-    subgraph Output ["Output"]
-        FR[FieldResults]
-        TCR[TestCaseResult]
-        ER[EvalResult]
-    end
-
-    TC -->|input| CEX
-    EX --> CEX
-    SP -.-> CEX
-    CEX -->|actual| CF
-    TC -->|expected| CF
-    CMP --> CF
-    CF --> FR
-    FR --> TCR
-    TCR --> ER
-
-    linkStyle default stroke:#FFFFFF
-    style Input fill:#343434,stroke:#6D88B4,color:#FFFFFF
-    style Execution fill:#343434,stroke:#6D88B4,color:#FFFFFF
-    style Output fill:#343434,stroke:#6D88B4,color:#FFFFFF
-    style TC fill:#BFD7FF,stroke:#6D88B4,color:#000B33
-    style EX fill:#BFD7FF,stroke:#6D88B4,color:#000B33
-    style CMP fill:#BFD7FF,stroke:#6D88B4,color:#000B33
-    style SP fill:#BFD7FF,stroke:#6D88B4,color:#000B33
-    style CEX fill:#BFD7FF,stroke:#6D88B4,color:#000B33
-    style CF fill:#BFD7FF,stroke:#6D88B4,color:#000B33
-    style FR fill:#BFD7FF,stroke:#6D88B4,color:#000B33
-    style TCR fill:#BFD7FF,stroke:#6D88B4,color:#000B33
-    style ER fill:#CDF1E6,stroke:#6D88B4,color:#000B33
-```
+![Eval Flow](docs/diagram-1.svg)
 
 #### Optimize Flow
 

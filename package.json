@@ -26,7 +26,8 @@
     "dev": "tsdown --watch",
     "test": "vitest --run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "gen:mermaid": "mmdc -i docs/charts.md -o docs/diagram.svg"
   },
   "keywords": [
     "llm",
@@ -58,6 +59,7 @@
     "openai": "^6.15.0"
   },
   "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^11.12.0",
     "@types/levenshtein": "^1.0.4",
     "@types/node": "^22.0.0",
     "tsdown": "^0.18.1",
