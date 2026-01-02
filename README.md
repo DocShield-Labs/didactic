@@ -1,6 +1,7 @@
 # Didactic
 
 [![CI](https://img.shields.io/github/actions/workflow/status/DocShield-Labs/didactic/ci.yml)](https://github.com/DocShield-Labs/didactic/actions/workflows/ci.yml)
+[![codecov](https://img.shields.io/codecov/c/github/DocShield-Labs/didactic)](https://codecov.io/gh/DocShield-Labs/didactic)
 [![npm version](https://img.shields.io/npm/v/@docshield/didactic.svg)](https://www.npmjs.com/package/@docshield/didactic)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
