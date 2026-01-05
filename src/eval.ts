@@ -14,9 +14,9 @@ import { DEFAULT_PER_TEST_THRESHOLD } from './constants.js';
 export async function evaluate<TInput, TOutput>(
   config: EvalConfig<TInput, TOutput>
 ): Promise<EvalResult<TInput, TOutput>> {
-
   // Read config
-  const { testCases, systemPrompt, executor, comparators, comparatorOverride } = config;
+  const { testCases, systemPrompt, executor, comparators, comparatorOverride } =
+    config;
 
   if (testCases.length === 0) {
     throw new Error('testCases array cannot be empty');
@@ -27,13 +27,20 @@ export async function evaluate<TInput, TOutput>(
   }
 
   if (!comparators && !comparatorOverride) {
-    throw new Error('either "comparators" (field mapping or single function) or "comparatorOverride" (whole-object) is required');
+    throw new Error(
+      'either "comparators" (field mapping or single function) or "comparatorOverride" (whole-object) is required'
+    );
   }
 
   // Execute a single test case
-  const executeTestCase = async ({ input, expected }: { input: TInput; expected: TOutput }) => {
+  const executeTestCase = async ({
+    input,
+    expected,
+  }: {
+    input: TInput;
+    expected: TOutput;
+  }) => {
     try {
-
       // Run the executor
       const result = await executor(input, systemPrompt);
 
@@ -46,7 +53,7 @@ export async function evaluate<TInput, TOutput>(
             passed: compResult.passed,
             expected,
             actual: result.output,
-          }
+          },
         };
       } else if (typeof comparators === 'function') {
         // Arrays always use element-wise comparison (for better debugging)
@@ -69,7 +76,7 @@ export async function evaluate<TInput, TOutput>(
               ...compResult,
               expected,
               actual: result.output,
-            }
+            },
           };
         }
       } else {
@@ -130,8 +137,12 @@ export async function evaluate<TInput, TOutput>(
 
       // Pause between batches (skip after last batch)
       const rateLimitPause = config.rateLimitPause;
-      if (rateLimitPause && rateLimitPause > 0 && i + rateLimitBatch < testCases.length) {
-        await new Promise(r => setTimeout(r, rateLimitPause * 1000));
+      if (
+        rateLimitPause &&
+        rateLimitPause > 0 &&
+        i + rateLimitBatch < testCases.length
+      ) {
+        await new Promise((r) => setTimeout(r, rateLimitPause * 1000));
       }
     }
   } else {
@@ -139,7 +150,7 @@ export async function evaluate<TInput, TOutput>(
     results = await Promise.all(testCases.map(executeTestCase));
   }
 
-  // Sort: failures first (by passRate ascending), then passes (100% at bottom) 
+  // Sort: failures first (by passRate ascending), then passes (100% at bottom)
   results.sort((a, b) => {
     if (a.passed !== b.passed) return a.passed ? 1 : -1;
     return a.passRate - b.passRate;
@@ -185,9 +196,17 @@ function compareFields(opts: {
   actualParent?: unknown;
   unorderedList?: boolean;
 }): Record<string, FieldResult> {
-  const { expected, actual, comparators, path = '', expectedParent, actualParent, unorderedList = false } = opts;
+  const {
+    expected,
+    actual,
+    comparators,
+    path = '',
+    expectedParent,
+    actualParent,
+    unorderedList = false,
+  } = opts;
   const results: Record<string, FieldResult> = {};
-  const indexPath = (i: number) => path ? `${path}[${i}]` : `[${i}]`;
+  const indexPath = (i: number) => (path ? `${path}[${i}]` : `[${i}]`);
 
   // ─── ARRAYS ─────────────────────────────────────────────────────────────────
   if (Array.isArray(expected)) {
@@ -216,20 +235,24 @@ function compareFields(opts: {
 
     // Compare matched pairs
     for (const [expIdx, actIdx] of matchedPairs) {
-      Object.assign(results, compareFields({
-        expected: expected[expIdx],
-        actual: actual[actIdx],
-        comparators,
-        path: indexPath(expIdx),
-        expectedParent,
-        actualParent,
-        unorderedList,
-      }));
+      Object.assign(
+        results,
+        compareFields({
+          expected: expected[expIdx],
+          actual: actual[actIdx],
+          comparators,
+          path: indexPath(expIdx),
+          expectedParent,
+          actualParent,
+          unorderedList,
+        })
+      );
     }
 
     // Report unmatched expected items as failures
     const arrayFieldName = getFieldName(path);
-    const hasArrayComparator = arrayFieldName in comparators || arrayFieldName === '';
+    const hasArrayComparator =
+      arrayFieldName in comparators || arrayFieldName === '';
 
     for (let i = 0; i < expected.length; i++) {
       if (matchedIndices.has(i)) continue;
@@ -238,11 +261,19 @@ function compareFields(opts: {
       if (isObject(item)) {
         for (const [field, value] of Object.entries(item)) {
           if (field in comparators) {
-            results[`${indexPath(i)}.${field}`] = { passed: false, expected: value, actual: undefined };
+            results[`${indexPath(i)}.${field}`] = {
+              passed: false,
+              expected: value,
+              actual: undefined,
+            };
           }
         }
       } else if (hasArrayComparator) {
-        results[indexPath(i)] = { passed: false, expected: item, actual: undefined };
+        results[indexPath(i)] = {
+          passed: false,
+          expected: item,
+          actual: undefined,
+        };
       }
     }
 
@@ -257,15 +288,18 @@ function compareFields(opts: {
 
     for (const [field, expValue] of Object.entries(expected)) {
       const fieldPath = path ? `${path}.${field}` : field;
-      Object.assign(results, compareFields({
-        expected: expValue,
-        actual: actual[field],
-        comparators,
-        path: fieldPath,
-        expectedParent: expected,
-        actualParent: actual,
-        unorderedList,
-      }));
+      Object.assign(
+        results,
+        compareFields({
+          expected: expValue,
+          actual: actual[field],
+          comparators,
+          path: fieldPath,
+          expectedParent: expected,
+          actualParent: actual,
+          unorderedList,
+        })
+      );
     }
 
     return results;
@@ -273,7 +307,8 @@ function compareFields(opts: {
 
   // ─── PRIMITIVES ─────────────────────────────────────────────────────────────
   const fieldName = getFieldName(path);
-  const comparator = comparators[fieldName] ?? (fieldName === '' ? exact : undefined);
+  const comparator =
+    comparators[fieldName] ?? (fieldName === '' ? exact : undefined);
 
   if (!comparator) {
     return {};

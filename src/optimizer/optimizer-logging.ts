@@ -1,36 +1,14 @@
-import type { TestCaseResult, OptimizeConfig, LLMProviders } from './types.js';
+import type { TestCaseResult } from '../types.js';
+import type { IterationLog, LogContext, LLMProviders } from './types.js';
 import * as fs from 'fs';
 import * as path from 'path';
+
+// Re-export types for backward compatibility
+export type { IterationLog, LogContext };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════
-
-export interface IterationLog {
-  iteration: number;
-  systemPrompt: string;
-  passed: number;
-  total: number;
-  correctFields: number;
-  totalFields: number;
-  testCases: TestCaseResult[];
-  cost: number;
-  cumulativeCost: number;
-  duration: number;
-  inputTokens: number;
-  outputTokens: number;
-  previousSuccessRate?: number;
-}
-
-/** Context passed to all logging functions for consistent output */
-export interface LogContext {
-  config: OptimizeConfig;
-  startTime: Date;
-  model: string;
-  perTestThreshold?: number;
-  rateLimitBatch?: number;
-  rateLimitPause?: number;
-}
 
 /** Metadata for JSON report */
 interface OptimizationMetadata {
@@ -99,7 +77,10 @@ interface FailureData {
   input: unknown;
   expected: unknown;
   actual: unknown;
-  fields: Record<string, { expected: unknown; actual: unknown; passed: boolean }>;
+  fields: Record<
+    string,
+    { expected: unknown; actual: unknown; passed: boolean }
+  >;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -203,7 +184,9 @@ export function formatFailure(testCase: TestCaseResult): string {
   lines.push(`Actual: ${JSON.stringify(testCase.actual, null, 2)}`);
 
   if (testCase.additionalContext) {
-    lines.push(`Context: ${JSON.stringify(testCase.additionalContext, null, 2)}`);
+    lines.push(
+      `Context: ${JSON.stringify(testCase.additionalContext, null, 2)}`
+    );
   }
 
   lines.push('');
@@ -211,7 +194,9 @@ export function formatFailure(testCase: TestCaseResult): string {
 
   for (const [fieldPath, result] of Object.entries(testCase.fields)) {
     if (!result.passed) {
-      lines.push(`  ${fieldPath || '(root)'}: expected ${JSON.stringify(result.expected)}, got ${JSON.stringify(result.actual)}`);
+      lines.push(
+        `  ${fieldPath || '(root)'}: expected ${JSON.stringify(result.expected)}, got ${JSON.stringify(result.actual)}`
+      );
     }
   }
 
@@ -224,7 +209,7 @@ export function formatFailure(testCase: TestCaseResult): string {
 
 function findBestIteration(iterations: IterationLog[]): IterationLog {
   return iterations.reduce((best, curr) =>
-    (curr.passed / curr.total) > (best.passed / best.total) ? curr : best
+    curr.passed / curr.total > best.passed / best.total ? curr : best
   );
 }
 
@@ -277,15 +262,24 @@ export function logEvaluationResult(
 }
 
 export function logRegressionDetected(bestSuccessRate: number): void {
-  console.log(`  → Regression detected (was ${(bestSuccessRate * 100).toFixed(1)}%)`);
+  console.log(
+    `  → Regression detected (was ${(bestSuccessRate * 100).toFixed(1)}%)`
+  );
 }
 
 export function logTargetReached(targetSuccessRate: number): void {
-  console.log(`  Target: ${(targetSuccessRate * 100).toFixed(0)}% | ✓ Target reached!`);
+  console.log(
+    `  Target: ${(targetSuccessRate * 100).toFixed(0)}% | ✓ Target reached!`
+  );
 }
 
-export function logTargetFailures(targetSuccessRate: number, failureCount: number): void {
-  console.log(`  Target: ${(targetSuccessRate * 100).toFixed(0)}% | ${failureCount} failures to address`);
+export function logTargetFailures(
+  targetSuccessRate: number,
+  failureCount: number
+): void {
+  console.log(
+    `  Target: ${(targetSuccessRate * 100).toFixed(0)}% | ${failureCount} failures to address`
+  );
 }
 
 export function logCostLimitReached(cumulativeCost: number): void {
@@ -297,7 +291,11 @@ export function logPatchGenerationStart(failureCount: number): void {
   console.log(`  Generating ${failureCount} patches in parallel...`);
 }
 
-export function logPatchGenerationResult(patchCost: number, cumulativeCost: number, durationMs: number): void {
+export function logPatchGenerationResult(
+  patchCost: number,
+  cumulativeCost: number,
+  durationMs: number
+): void {
   console.log(
     `  Patches generated | Cost: $${patchCost.toFixed(4)} | Total: $${cumulativeCost.toFixed(4)} ${formatDurationForLog(durationMs)}`
   );
@@ -308,13 +306,20 @@ export function logMergeStart(): void {
   console.log(`  Merging patches...`);
 }
 
-export function logMergeResult(mergeCost: number, cumulativeCost: number, durationMs: number): void {
+export function logMergeResult(
+  mergeCost: number,
+  cumulativeCost: number,
+  durationMs: number
+): void {
   console.log(
     `  Patches merged | Cost: $${mergeCost.toFixed(4)} | Total: $${cumulativeCost.toFixed(4)} ${formatDurationForLog(durationMs)}`
   );
 }
 
-export function logPatchGenerationFailures(failedCount: number, totalCount: number): void {
+export function logPatchGenerationFailures(
+  failedCount: number,
+  totalCount: number
+): void {
   console.log(`  ⚠ ${failedCount}/${totalCount} patch generations failed`);
 }
 
@@ -338,9 +343,14 @@ export function logLogsWritten(logPath: string): void {
 // MARKDOWN REPORT (One Sheet - No Prompts, No Failures)
 // ═══════════════════════════════════════════════════════════════════════════
 
-function generateConfigSection(ctx: LogContext, testCaseCount: number): string[] {
+function generateConfigSection(
+  ctx: LogContext,
+  testCaseCount: number
+): string[] {
   const lines: string[] = [];
-  const maxIterLabel = ctx.config.maxIterations ?? (ctx.config.maxCost !== undefined ? '∞ (cost-limited)' : '5');
+  const maxIterLabel =
+    ctx.config.maxIterations ??
+    (ctx.config.maxCost !== undefined ? '∞ (cost-limited)' : '5');
 
   lines.push('## Configuration');
   lines.push('| Setting | Value |');
@@ -348,7 +358,9 @@ function generateConfigSection(ctx: LogContext, testCaseCount: number): string[]
   lines.push(`| Model | ${ctx.model} |`);
   lines.push(`| Provider | ${ctx.config.provider} |`);
   lines.push(`| Thinking | ${ctx.config.thinking ? 'Enabled' : 'Disabled'} |`);
-  lines.push(`| Target | ${(ctx.config.targetSuccessRate * 100).toFixed(0)}% |`);
+  lines.push(
+    `| Target | ${(ctx.config.targetSuccessRate * 100).toFixed(0)}% |`
+  );
   lines.push(`| Max Iterations | ${maxIterLabel} |`);
   if (ctx.config.maxCost !== undefined) {
     lines.push(`| Max Cost | $${ctx.config.maxCost.toFixed(2)} |`);
@@ -359,7 +371,9 @@ function generateConfigSection(ctx: LogContext, testCaseCount: number): string[]
     const pause = ctx.rateLimitPause ?? 0;
     lines.push(`| Rate Limit | ${batch} cases/batch, ${pause}s pause |`);
   }
-  lines.push(`| Per-Test Threshold | ${((ctx.perTestThreshold ?? 1.0) * 100).toFixed(0)}% |`);
+  lines.push(
+    `| Per-Test Threshold | ${((ctx.perTestThreshold ?? 1.0) * 100).toFixed(0)}% |`
+  );
   lines.push('');
 
   return lines;
@@ -368,16 +382,21 @@ function generateConfigSection(ctx: LogContext, testCaseCount: number): string[]
 function generateBestRunSection(bestIter: IterationLog): string[] {
   const lines: string[] = [];
   const rate = (bestIter.passed / bestIter.total) * 100;
-  const fieldAccuracy = bestIter.totalFields > 0
-    ? (bestIter.correctFields / bestIter.totalFields) * 100
-    : 100;
+  const fieldAccuracy =
+    bestIter.totalFields > 0
+      ? (bestIter.correctFields / bestIter.totalFields) * 100
+      : 100;
 
   lines.push('## Best Run');
   lines.push('| Metric | Value |');
   lines.push('|--------|-------|');
   lines.push(`| Iteration | ${bestIter.iteration} |`);
-  lines.push(`| Success Rate | ${rate.toFixed(1)}% (${bestIter.passed}/${bestIter.total}) |`);
-  lines.push(`| Field Accuracy | ${fieldAccuracy.toFixed(1)}% (${bestIter.correctFields}/${bestIter.totalFields}) |`);
+  lines.push(
+    `| Success Rate | ${rate.toFixed(1)}% (${bestIter.passed}/${bestIter.total}) |`
+  );
+  lines.push(
+    `| Field Accuracy | ${fieldAccuracy.toFixed(1)}% (${bestIter.correctFields}/${bestIter.totalFields}) |`
+  );
   lines.push(`| Cost | $${bestIter.cost.toFixed(2)} |`);
   lines.push('');
 
@@ -387,7 +406,11 @@ function generateBestRunSection(bestIter: IterationLog): string[] {
 function generateSummarySection(
   iterations: IterationLog[],
   success: boolean,
-  totals: { totalInputTokens: number; totalOutputTokens: number; totalDuration: number }
+  totals: {
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalDuration: number;
+  }
 ): string[] {
   const lines: string[] = [];
   const firstIter = iterations[0];
@@ -401,9 +424,13 @@ function generateSummarySection(
   lines.push('|--------|-------|');
   lines.push(`| Total Iterations | ${iterations.length} |`);
   lines.push(`| Total Duration | ${formatMsCompact(totals.totalDuration)} |`);
-  lines.push(`| Start -> End | ${startRate.toFixed(1)}% -> ${endRate.toFixed(1)}% |`);
+  lines.push(
+    `| Start -> End | ${startRate.toFixed(1)}% -> ${endRate.toFixed(1)}% |`
+  );
   lines.push(`| Target Met | ${success ? '✓ Yes' : '✗ No'} |`);
-  lines.push(`| Total Tokens | ${formatTokensCompact(totals.totalInputTokens)} in / ${formatTokensCompact(totals.totalOutputTokens)} out |`);
+  lines.push(
+    `| Total Tokens | ${formatTokensCompact(totals.totalInputTokens)} in / ${formatTokensCompact(totals.totalOutputTokens)} out |`
+  );
   lines.push(`| Total Cost | $${totalCost.toFixed(2)} |`);
   lines.push('');
 
@@ -412,7 +439,7 @@ function generateSummarySection(
 
 function generateRunsTable(iterations: IterationLog[]): string[] {
   const lines: string[] = [];
-  const bestRate = Math.max(...iterations.map(i => i.passed / i.total));
+  const bestRate = Math.max(...iterations.map((i) => i.passed / i.total));
 
   lines.push('## Runs');
   lines.push('| # | Rate | Fields | Cost | Duration | Tokens In/Out |');
@@ -422,21 +449,27 @@ function generateRunsTable(iterations: IterationLog[]): string[] {
     const iter = iterations[i];
     const rate = iter.passed / iter.total;
     const ratePct = (rate * 100).toFixed(1);
-    const fieldAccuracy = iter.totalFields > 0
-      ? (iter.correctFields / iter.totalFields) * 100
-      : 100;
+    const fieldAccuracy =
+      iter.totalFields > 0
+        ? (iter.correctFields / iter.totalFields) * 100
+        : 100;
 
     // Determine indicator: ★ for best, ↓ for regression
     let indicator = '';
     if (rate === bestRate) {
       indicator = ' ★';
-    } else if (iter.previousSuccessRate !== undefined && rate < iter.previousSuccessRate) {
+    } else if (
+      iter.previousSuccessRate !== undefined &&
+      rate < iter.previousSuccessRate
+    ) {
       indicator = ' ↓';
     }
 
     const tokens = `${formatTokensCompact(iter.inputTokens)} / ${formatTokensCompact(iter.outputTokens)}`;
 
-    lines.push(`| ${iter.iteration} | ${ratePct}% (${iter.passed}/${iter.total})${indicator} | ${fieldAccuracy.toFixed(1)}% | $${iter.cost.toFixed(2)} | ${formatMsCompact(iter.duration)} | ${tokens} |`);
+    lines.push(
+      `| ${iter.iteration} | ${ratePct}% (${iter.passed}/${iter.total})${indicator} | ${fieldAccuracy.toFixed(1)}% | $${iter.cost.toFixed(2)} | ${formatMsCompact(iter.duration)} | ${tokens} |`
+    );
   }
 
   lines.push('');
@@ -446,9 +479,12 @@ function generateRunsTable(iterations: IterationLog[]): string[] {
   return lines;
 }
 
-function generateProgressChart(iterations: IterationLog[], targetRate: number): string[] {
+function generateProgressChart(
+  iterations: IterationLog[],
+  targetRate: number
+): string[] {
   const lines: string[] = [];
-  const bestRate = Math.max(...iterations.map(i => i.passed / i.total));
+  const bestRate = Math.max(...iterations.map((i) => i.passed / i.total));
 
   lines.push('## Progression');
   lines.push('```');
@@ -459,7 +495,9 @@ function generateProgressChart(iterations: IterationLog[], targetRate: number): 
     let suffix = '';
     if (rate === bestRate) suffix += ' ★';
     if (rate >= targetRate) suffix += ' ✓';
-    lines.push(`Iter ${iter.iteration}: ${bar} ${pct}%  ${formatMsCompact(iter.duration)}${suffix}`);
+    lines.push(
+      `Iter ${iter.iteration}: ${bar} ${pct}%  ${formatMsCompact(iter.duration)}${suffix}`
+    );
   }
   lines.push('```');
   lines.push('');
@@ -488,7 +526,9 @@ export function generateLogContent(
   lines.push(...generateBestRunSection(bestIter));
   lines.push(...generateSummarySection(iterations, success, totals));
   lines.push(...generateRunsTable(iterations));
-  lines.push(...generateProgressChart(iterations, ctx.config.targetSuccessRate));
+  lines.push(
+    ...generateProgressChart(iterations, ctx.config.targetSuccessRate)
+  );
 
   // Footer with links to companion files
   lines.push('---');
@@ -553,9 +593,10 @@ export function writeRawDataJson(
       successRate: bestIter.passed / bestIter.total,
       passed: bestIter.passed,
       total: bestIter.total,
-      fieldAccuracy: bestIter.totalFields > 0
-        ? bestIter.correctFields / bestIter.totalFields
-        : 1,
+      fieldAccuracy:
+        bestIter.totalFields > 0
+          ? bestIter.correctFields / bestIter.totalFields
+          : 1,
     },
     iterations: iterations.map((iter) => {
       const failures: FailureData[] = [];
@@ -578,7 +619,8 @@ export function writeRawDataJson(
         total: iter.total,
         correctFields: iter.correctFields,
         totalFields: iter.totalFields,
-        fieldAccuracy: iter.totalFields > 0 ? iter.correctFields / iter.totalFields : 1,
+        fieldAccuracy:
+          iter.totalFields > 0 ? iter.correctFields / iter.totalFields : 1,
         cost: iter.cost,
         cumulativeCost: iter.cumulativeCost,
         durationMs: iter.duration,
@@ -592,7 +634,11 @@ export function writeRawDataJson(
   fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf-8');
 }
 
-export function writePromptsFile(folderPath: string, iterations: IterationLog[], ctx: LogContext): void {
+export function writePromptsFile(
+  folderPath: string,
+  iterations: IterationLog[],
+  ctx: LogContext
+): void {
   const promptsPath = path.join(folderPath, 'prompts.md');
   const startTimeStr = ctx.startTime.toLocaleString();
   const bestIter = findBestIteration(iterations);
@@ -604,7 +650,9 @@ export function writePromptsFile(folderPath: string, iterations: IterationLog[],
 
   for (const iter of iterations) {
     const rate = iter.total > 0 ? (iter.passed / iter.total) * 100 : 0;
-    lines.push(`## Iteration ${iter.iteration} | ${rate.toFixed(1)}% (${iter.passed}/${iter.total})`);
+    lines.push(
+      `## Iteration ${iter.iteration} | ${rate.toFixed(1)}% (${iter.passed}/${iter.total})`
+    );
     lines.push('');
     lines.push('```');
     lines.push(iter.systemPrompt);
@@ -620,7 +668,9 @@ export function writePromptsFile(folderPath: string, iterations: IterationLog[],
   lines.push('---');
   lines.push('');
   const bestRate = (bestIter.passed / bestIter.total) * 100;
-  lines.push(`## Best Prompt (Iteration ${bestIter.iteration}) | ${bestRate.toFixed(1)}% (${bestIter.passed}/${bestIter.total})`);
+  lines.push(
+    `## Best Prompt (Iteration ${bestIter.iteration}) | ${bestRate.toFixed(1)}% (${bestIter.passed}/${bestIter.total})`
+  );
   lines.push('');
   lines.push('```');
   lines.push(bestIter.systemPrompt);
@@ -639,12 +689,19 @@ export function writeBestRunJson(
 
   // Extract only failed fields (not all fields)
   const extractFailedFields = (
-    fields: Record<string, { passed: boolean; expected: unknown; actual: unknown }>
+    fields: Record<
+      string,
+      { passed: boolean; expected: unknown; actual: unknown }
+    >
   ): Record<string, { expected: unknown; actual: unknown }> => {
-    const failedFields: Record<string, { expected: unknown; actual: unknown }> = {};
+    const failedFields: Record<string, { expected: unknown; actual: unknown }> =
+      {};
     for (const [fieldPath, result] of Object.entries(fields)) {
       if (!result.passed) {
-        failedFields[fieldPath] = { expected: result.expected, actual: result.actual };
+        failedFields[fieldPath] = {
+          expected: result.expected,
+          actual: result.actual,
+        };
       }
     }
     return failedFields;
@@ -701,9 +758,10 @@ export function writeBestRunJson(
       successRate: bestIter.passed / bestIter.total,
       passed: bestIter.passed,
       total: bestIter.total,
-      fieldAccuracy: bestIter.totalFields > 0
-        ? bestIter.correctFields / bestIter.totalFields
-        : 1,
+      fieldAccuracy:
+        bestIter.totalFields > 0
+          ? bestIter.correctFields / bestIter.totalFields
+          : 1,
       correctFields: bestIter.correctFields,
       totalFields: bestIter.totalFields,
     },

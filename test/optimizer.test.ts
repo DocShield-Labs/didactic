@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { optimize } from '../src/optimizer.js';
+import { optimize } from '../src/optimizer/optimizer.js';
 import { exact } from '../src/comparators.js';
 import { mock } from '../src/executors.js';
 import { LLMProviders } from '../src/types.js';
@@ -356,6 +356,79 @@ describe('optimize', () => {
 
       // Should return the initial prompt since it performed better
       expect(result.finalPrompt).toBe('initial prompt');
+    });
+  });
+
+  describe('custom system prompts', () => {
+    it('accepts custom patchSystemPrompt in config', async () => {
+      const evalConfig: EvalConfig<Input, Output> = {
+        executor: mock([{ value: 1 }]), // Passes immediately
+        comparators: { value: exact },
+        testCases: [{ input: { id: 1 }, expected: { value: 1 } }],
+      };
+
+      const customPatchPrompt = 'Custom patch generation instructions';
+      const optimizeConfig: OptimizeConfig = {
+        systemPrompt: 'test prompt',
+        targetSuccessRate: 1.0,
+        apiKey: 'test-key',
+        provider: LLMProviders.anthropic_claude_sonnet,
+        maxIterations: 1,
+        patchSystemPrompt: customPatchPrompt,
+      };
+
+      const result = await optimize(evalConfig, optimizeConfig);
+
+      // Should complete successfully with custom prompt in config
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts custom mergeSystemPrompt in config', async () => {
+      const evalConfig: EvalConfig<Input, Output> = {
+        executor: mock([{ value: 1 }]), // Passes immediately
+        comparators: { value: exact },
+        testCases: [{ input: { id: 1 }, expected: { value: 1 } }],
+      };
+
+      const customMergePrompt = 'Custom merge instructions';
+      const optimizeConfig: OptimizeConfig = {
+        systemPrompt: 'test prompt',
+        targetSuccessRate: 1.0,
+        apiKey: 'test-key',
+        provider: LLMProviders.anthropic_claude_sonnet,
+        maxIterations: 1,
+        mergeSystemPrompt: customMergePrompt,
+      };
+
+      const result = await optimize(evalConfig, optimizeConfig);
+
+      // Should complete successfully with custom prompt in config
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts both custom prompts in config', async () => {
+      const evalConfig: EvalConfig<Input, Output> = {
+        executor: mock([{ value: 1 }]), // Passes immediately
+        comparators: { value: exact },
+        testCases: [{ input: { id: 1 }, expected: { value: 1 } }],
+      };
+
+      const customPatchPrompt = 'Custom patch generation';
+      const customMergePrompt = 'Custom merge logic';
+      const optimizeConfig: OptimizeConfig = {
+        systemPrompt: 'test prompt',
+        targetSuccessRate: 1.0,
+        apiKey: 'test-key',
+        provider: LLMProviders.anthropic_claude_sonnet,
+        maxIterations: 1,
+        patchSystemPrompt: customPatchPrompt,
+        mergeSystemPrompt: customMergePrompt,
+      };
+
+      const result = await optimize(evalConfig, optimizeConfig);
+
+      // Should complete successfully with both custom prompts in config
+      expect(result.success).toBe(true);
     });
   });
 });

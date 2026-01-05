@@ -1,4 +1,8 @@
-import type { Comparator, ComparatorContext, ComparatorResult } from './types.js';
+import type {
+  Comparator,
+  ComparatorContext,
+  ComparatorResult,
+} from './types.js';
 import { NAME_SUFFIXES } from './constants.js';
 import * as chrono from 'chrono-node';
 import { differenceInDays } from 'date-fns';
@@ -16,7 +20,6 @@ import Levenshtein from 'levenshtein';
 // oneOf     - enum validation
 // presence  - value exists check
 // within    - numeric tolerance
-
 
 /** Checks if actual string contains a substring. */
 export function contains(substring: string): Comparator<string> {
@@ -50,7 +53,9 @@ export function date(expected: unknown, actual: unknown): ComparatorResult {
   }
 
   const passed = expDate === actDate;
-  const daysDiff = Math.abs(differenceInDays(new Date(expDate), new Date(actDate)));
+  const daysDiff = Math.abs(
+    differenceInDays(new Date(expDate), new Date(actDate))
+  );
 
   return { passed, similarity: Math.exp(-daysDiff / 30) };
 }
@@ -86,7 +91,10 @@ export function name(expected: unknown, actual: unknown): ComparatorResult {
   const actTokens = actName.split(' ').filter(Boolean);
 
   if (expTokens.length >= 2 && actTokens.length >= 2) {
-    if (expTokens[0] === actTokens[0] && expTokens.at(-1) === actTokens.at(-1)) {
+    if (
+      expTokens[0] === actTokens[0] &&
+      expTokens.at(-1) === actTokens.at(-1)
+    ) {
       return { passed: true, similarity: 0.95 };
     }
   }
@@ -104,10 +112,17 @@ export function name(expected: unknown, actual: unknown): ComparatorResult {
 /** Compares numbers after stripping currency symbols, commas, and formatting. */
 export const numeric = Object.assign(
   (expected: unknown, actual: unknown) => numericCompare(expected, actual),
-  { nullable: (expected: unknown, actual: unknown) => numericCompare(expected, actual, true) }
+  {
+    nullable: (expected: unknown, actual: unknown) =>
+      numericCompare(expected, actual, true),
+  }
 );
 
-function numericCompare(expected: unknown, actual: unknown, nullable = false): ComparatorResult {
+function numericCompare(
+  expected: unknown,
+  actual: unknown,
+  nullable = false
+): ComparatorResult {
   let expNum = normalizeNumeric(expected);
   let actNum = normalizeNumeric(actual);
 
@@ -129,7 +144,9 @@ function numericCompare(expected: unknown, actual: unknown, nullable = false): C
 }
 
 /** Validates that actual equals expected AND both are in the allowed set. */
-export function oneOf<T extends string>(allowedValues: readonly T[]): Comparator<T> {
+export function oneOf<T extends string>(
+  allowedValues: readonly T[]
+): Comparator<T> {
   if (allowedValues.length === 0) {
     throw new Error('oneOf() requires at least one allowed value');
   }
@@ -160,18 +177,21 @@ export function within(config: {
 
   return (expected, actual) => {
     const diff = Math.abs(expected - actual);
-    const threshold = mode === 'absolute' ? tolerance : Math.abs(expected * tolerance);
+    const threshold =
+      mode === 'absolute' ? tolerance : Math.abs(expected * tolerance);
     const passed = diff <= threshold;
 
     // Similarity: 1.0 at exact match, 0.5 at boundary, decays beyond
-    const similarity = threshold > 0
-      ? Math.exp(-diff / threshold * 0.693)
-      : (diff === 0 ? 1.0 : 0.0);
+    const similarity =
+      threshold > 0
+        ? Math.exp((-diff / threshold) * 0.693)
+        : diff === 0
+          ? 1.0
+          : 0.0;
 
     return { passed, similarity };
   };
 }
-
 
 // Private helpers
 
@@ -179,7 +199,11 @@ export function within(config: {
  * Deep equality comparison with cycle detection.
  * Uses WeakSet to track visited object pairs to prevent stack overflow on circular references.
  */
-function deepEqual(a: unknown, b: unknown, visited = new WeakSet<object>()): boolean {
+function deepEqual(
+  a: unknown,
+  b: unknown,
+  visited = new WeakSet<object>()
+): boolean {
   if (a === b) return true;
   if (a == null || b == null) return false;
   if (typeof a !== typeof b) return false;
@@ -206,7 +230,7 @@ function deepEqual(a: unknown, b: unknown, visited = new WeakSet<object>()): boo
 
     const aKeys = Object.keys(aObj);
     if (aKeys.length !== Object.keys(bObj).length) return false;
-    return aKeys.every(key => deepEqual(aObj[key], bObj[key], visited));
+    return aKeys.every((key) => deepEqual(aObj[key], bObj[key], visited));
   }
 
   return false;
@@ -220,7 +244,12 @@ function normalizeDate(value: unknown): string | null {
 
 function normalizeName(value: unknown): string | null {
   if (value == null || value === '') return null;
-  const str = String(value).toLowerCase().trim().replace(/\s+/g, ' ').replace(NAME_SUFFIXES, '').trim();
+  const str = String(value)
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(NAME_SUFFIXES, '')
+    .trim();
   return str || null;
 }
 
@@ -230,7 +259,7 @@ function normalizeNumeric(value: unknown): number | null {
   const str = String(value);
   const isNegativeParens = /^\(.*\)$/.test(str.trim());
 
-  let cleaned = str.replace(/[^0-9.\-]/g, '');
+  let cleaned = str.replace(/[^0-9.-]/g, '');
   if (isNegativeParens && !cleaned.startsWith('-')) {
     cleaned = '-' + cleaned;
   }

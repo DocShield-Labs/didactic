@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { within, oneOf, presence, custom, exact, contains, numeric, date, name } from '../src/comparators.js';
+import {
+  within,
+  oneOf,
+  presence,
+  custom,
+  exact,
+  contains,
+  numeric,
+  date,
+  name,
+} from '../src/comparators.js';
 
 describe('within', () => {
   it('percentage mode passes/fails based on tolerance', () => {
@@ -51,7 +61,9 @@ describe('oneOf', () => {
   });
 
   it('throws when allowedValues is empty', () => {
-    expect(() => oneOf([])).toThrow('oneOf() requires at least one allowed value');
+    expect(() => oneOf([])).toThrow(
+      'oneOf() requires at least one allowed value'
+    );
   });
 });
 
@@ -287,7 +299,9 @@ describe('name', () => {
     expect(name('John Smith', 'John Andrew Charles Smith').passed).toBe(true);
 
     // Complex last names (van der, etc.)
-    expect(name('John van der Berg', 'John James van der Berg').passed).toBe(true);
+    expect(name('John van der Berg', 'John James van der Berg').passed).toBe(
+      true
+    );
   });
 
   it('returns lower similarity for middle name matches vs exact matches', () => {
@@ -432,9 +446,9 @@ describe('edge cases', () => {
       expect(comparator(Infinity, Infinity).passed).toBe(false);
       // Infinity - 100 = Infinity, Infinity * 0.1 = Infinity, Infinity <= Infinity is true
       // This is mathematically questionable but JavaScript's behavior
-      expect(comparator(Infinity, 100).passed).toBe(true);  // diff=Infinity, threshold=Infinity
-      expect(comparator(100, Infinity).passed).toBe(false);  // diff=Infinity, threshold=10
-      expect(comparator(-Infinity, -Infinity).passed).toBe(false);  // NaN
+      expect(comparator(Infinity, 100).passed).toBe(true); // diff=Infinity, threshold=Infinity
+      expect(comparator(100, Infinity).passed).toBe(false); // diff=Infinity, threshold=10
+      expect(comparator(-Infinity, -Infinity).passed).toBe(false); // NaN
     });
 
     it('handles zero tolerance', () => {
@@ -529,7 +543,7 @@ describe('edge cases', () => {
       expect(result1.similarity).toBeGreaterThan(0.7);
       expect(result2.similarity).toBeGreaterThan(0.7);
       // Document that accented characters cause fuzzy match failures
-      expect(result1.passed).toBe(false);  // é causes enough distance to fail
+      expect(result1.passed).toBe(false); // é causes enough distance to fail
       expect(result2.passed).toBe(false);
     });
 
