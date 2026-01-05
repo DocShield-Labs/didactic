@@ -49,10 +49,14 @@ export function endpoint<TInput = unknown, TOutput = unknown>(
     timeout = DEFAULT_ENDPOINT_TIMEOUT_MS,
   } = config;
 
-  return async (input: TInput, systemPrompt?: string): Promise<ExecutorResult<TOutput>> => {
-    const body = typeof input === 'object' && input !== null
-      ? { ...input, systemPrompt }
-      : { input, systemPrompt };
+  return async (
+    input: TInput,
+    systemPrompt?: string
+  ): Promise<ExecutorResult<TOutput>> => {
+    const body =
+      typeof input === 'object' && input !== null
+        ? { ...input, systemPrompt }
+        : { input, systemPrompt };
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -121,9 +125,14 @@ export function endpoint<TInput = unknown, TOutput = unknown>(
 export function fn<TInput, TOutput extends object, TRaw = TOutput>(
   config: FnConfig<TInput, TOutput, TRaw>
 ): Executor<TInput, TOutput> {
-  return async (input: TInput, systemPrompt?: string): Promise<ExecutorResult<TOutput>> => {
+  return async (
+    input: TInput,
+    systemPrompt?: string
+  ): Promise<ExecutorResult<TOutput>> => {
     const raw = await config.fn(input, systemPrompt);
-    const output = config.mapResponse ? config.mapResponse(raw) : raw as unknown as TOutput;
+    const output = config.mapResponse
+      ? config.mapResponse(raw)
+      : (raw as unknown as TOutput);
     const additionalContext = config.mapAdditionalContext?.(raw);
     const cost = config.mapCost?.(raw) ?? 0;
     return { output, additionalContext, cost };
@@ -157,7 +166,10 @@ export function mock<TInput, TOutput extends object>(
 ): Executor<TInput, TOutput> {
   // Function-based mock
   if (typeof outputsOrFn === 'function') {
-    return async (input: TInput, systemPrompt?: string): Promise<ExecutorResult<TOutput>> => {
+    return async (
+      input: TInput,
+      systemPrompt?: string
+    ): Promise<ExecutorResult<TOutput>> => {
       const output = outputsOrFn(input, systemPrompt);
       return { output };
     };

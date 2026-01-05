@@ -2,84 +2,82 @@ import { describe, it, expect } from 'vitest';
 import { matchArrays } from '../src/matching.js';
 import { exact, within, date } from '../src/comparators.js';
 
-
 const testCase1Actual = [
   {
-    applicant_name: "Gabriel Barciela",
-    status: "quoted",
-    policy_structure: "modified_claims_made",
+    applicant_name: 'Gabriel Barciela',
+    status: 'quoted',
+    policy_structure: 'modified_claims_made',
     per_occurrence_limit: 250000,
     aggregate_limit: 750000,
     premium: 9589,
     taxes: 0,
     fees: 0,
-    retroactive_date: "01/01/2026",
+    retroactive_date: '01/01/2026',
   },
   {
-    applicant_name: "Gabriel Barciela",
-    status: "quoted",
-    policy_structure: "modified_claims_made",
+    applicant_name: 'Gabriel Barciela',
+    status: 'quoted',
+    policy_structure: 'modified_claims_made',
     per_occurrence_limit: 250000,
     aggregate_limit: 750000,
     premium: 7588, // Should match to 7500 premium from expected
     taxes: 0,
     fees: 0,
-    retroactive_date: "01/01/2026",
-  }
-]
+    retroactive_date: '01/01/2026',
+  },
+];
 
 const testCase1Expected = [
   {
-    applicant_name: "Gabriel Barciela",
-    status: "quoted",
-    policy_structure: "modified_claims_made",
+    applicant_name: 'Gabriel Barciela',
+    status: 'quoted',
+    policy_structure: 'modified_claims_made',
     per_occurrence_limit: 250000,
     aggregate_limit: 750000,
     premium: 9589,
   },
   {
-    applicant_name: "Gabriel Barciela",
-    status: "quoted",
-    policy_structure: "modified_claims_made",
+    applicant_name: 'Gabriel Barciela',
+    status: 'quoted',
+    policy_structure: 'modified_claims_made',
     per_occurrence_limit: 250000,
     aggregate_limit: 750000,
     premium: 7500,
-  }
-]
-
+  },
+];
 
 const testCase2Actual = [
   {
-    applicant_name: "Gabriel Barciela",
-    status: "quoted",
-    policy_structure: "modified_claims_made",
+    applicant_name: 'Gabriel Barciela',
+    status: 'quoted',
+    policy_structure: 'modified_claims_made',
     per_occurrence_limit: 250000,
     aggregate_limit: 750000,
     premium: 9589,
-    effective_date: "01/03/2026",
+    effective_date: '01/03/2026',
   },
   {
-    applicant_name: "Gabriel Barciela",
-    status: "quoted",
-    policy_structure: "modified_claims_made",
+    applicant_name: 'Gabriel Barciela',
+    status: 'quoted',
+    policy_structure: 'modified_claims_made',
     per_occurrence_limit: 250000,
     aggregate_limit: 750000,
     premium: 9589,
-    effective_date: "01/02/2026", // Should match 01/01/2026 from expected since it's closest
-  }
-]
+    effective_date: '01/02/2026', // Should match 01/01/2026 from expected since it's closest
+  },
+];
 
 const testCase2Expected = [
   {
-    applicant_name: "Gabriel Barciela",
-    status: "quoted",
-    policy_structure: "modified_claims_made",
+    applicant_name: 'Gabriel Barciela',
+    status: 'quoted',
+    policy_structure: 'modified_claims_made',
     per_occurrence_limit: 250000,
     aggregate_limit: 750000,
     premium: 9589,
-    effective_date: "01/01/2026",
-  }
-]
+    effective_date: '01/01/2026',
+  },
+];
 
 describe('matchArrays', () => {
   describe('primitives', () => {
@@ -116,7 +114,10 @@ describe('matchArrays', () => {
   });
 
   describe('objects with exact matching', () => {
-    interface Quote { carrier: string; premium: number }
+    interface Quote {
+      carrier: string;
+      premium: number;
+    }
 
     it('matches identical object arrays', () => {
       const expected: Quote[] = [
@@ -183,7 +184,10 @@ describe('matchArrays', () => {
   });
 
   describe('objects with field comparators', () => {
-    interface Quote { carrier: string; premium: number }
+    interface Quote {
+      carrier: string;
+      premium: number;
+    }
 
     it('similarity score reflects field comparator results', () => {
       const expected: Quote[] = [{ carrier: 'Acme', premium: 100 }];
@@ -208,7 +212,7 @@ describe('matchArrays', () => {
       ];
       const actual: Quote[] = [
         { carrier: 'Beta', premium: 210 }, // 5% diff
-        { carrier: 'Acme', premium: 95 },  // 5% diff
+        { carrier: 'Acme', premium: 95 }, // 5% diff
       ];
 
       const result = matchArrays(expected, actual, {
@@ -287,9 +291,7 @@ describe('matchArrays', () => {
 
   describe('edge cases', () => {
     it('handles nested objects with similarity calculation', () => {
-      const expected = [
-        { user: { name: 'John', age: 30 }, status: 'active' },
-      ];
+      const expected = [{ user: { name: 'John', age: 30 }, status: 'active' }];
       const actual = [
         { user: { name: 'John', age: 31 }, status: 'active' }, // nested age differs
       ];
@@ -363,8 +365,8 @@ describe('matchArrays', () => {
     it('picks optimal match when competing similar objects exist', () => {
       const expected = [{ premium: 100 }];
       const actual = [
-        { premium: 90 },   // 10% diff
-        { premium: 102 },  // 2% diff - should be picked
+        { premium: 90 }, // 10% diff
+        { premium: 102 }, // 2% diff - should be picked
       ];
 
       const result = matchArrays(expected, actual, {
@@ -388,8 +390,8 @@ describe('matchArrays', () => {
     });
 
     it('handles type mismatches between string and number', () => {
-      const expected = [{ value: '100' }];  // string
-      const actual = [{ value: 100 }];      // number
+      const expected = [{ value: '100' }]; // string
+      const actual = [{ value: 100 }]; // number
 
       const result = matchArrays(expected, actual);
       // Type mismatch means field doesn't match exactly
@@ -399,12 +401,8 @@ describe('matchArrays', () => {
     });
 
     it('uses exact comparator for fields without explicit comparator', () => {
-      const expected = [
-        { carrier: 'Acme', premium: 100, region: 'US' },
-      ];
-      const actual = [
-        { carrier: 'Acme', premium: 105, region: 'US' },
-      ];
+      const expected = [{ carrier: 'Acme', premium: 100, region: 'US' }];
+      const actual = [{ carrier: 'Acme', premium: 105, region: 'US' }];
 
       // Only premium has comparator; carrier and region use exact
       const result = matchArrays(expected, actual, {
@@ -416,9 +414,7 @@ describe('matchArrays', () => {
     });
 
     it('handles mixed comparators with some fields failing', () => {
-      const expected = [
-        { carrier: 'Acme', premium: 100, region: 'US' },
-      ];
+      const expected = [{ carrier: 'Acme', premium: 100, region: 'US' }];
       const actual = [
         { carrier: 'Beta', premium: 105, region: 'US' }, // carrier differs
       ];
@@ -435,20 +431,24 @@ describe('matchArrays', () => {
     });
 
     it('handles deeply nested objects', () => {
-      const expected = [{
-        level1: {
-          level2: {
-            level3: { value: 'deep' }
-          }
-        }
-      }];
-      const actual = [{
-        level1: {
-          level2: {
-            level3: { value: 'deep' }
-          }
-        }
-      }];
+      const expected = [
+        {
+          level1: {
+            level2: {
+              level3: { value: 'deep' },
+            },
+          },
+        },
+      ];
+      const actual = [
+        {
+          level1: {
+            level2: {
+              level3: { value: 'deep' },
+            },
+          },
+        },
+      ];
 
       const result = matchArrays(expected, actual);
       expect(result.assignments).toHaveLength(1);
@@ -466,15 +466,20 @@ describe('matchArrays', () => {
     });
 
     it('handles large arrays efficiently', () => {
-      const expected = Array.from({ length: 50 }, (_, i) => ({ id: i, value: i * 10 }));
-      const actual = Array.from({ length: 50 }, (_, i) => ({ id: i, value: i * 10 }));
+      const expected = Array.from({ length: 50 }, (_, i) => ({
+        id: i,
+        value: i * 10,
+      }));
+      const actual = Array.from({ length: 50 }, (_, i) => ({
+        id: i,
+        value: i * 10,
+      }));
 
       const result = matchArrays(expected, actual);
       expect(result.assignments).toHaveLength(50);
       expect(result.unmatchedExpected).toHaveLength(0);
       expect(result.unmatchedActual).toHaveLength(0);
     });
-
   });
 
   describe('optimal pairing verification', () => {
@@ -485,12 +490,15 @@ describe('matchArrays', () => {
         { carrier: 'Gamma', premium: 300 },
       ];
       const actual = [
-        { carrier: 'Gamma', premium: 300 },  // idx 0
-        { carrier: 'Acme', premium: 100 },   // idx 1
-        { carrier: 'Beta', premium: 200 },   // idx 2
+        { carrier: 'Gamma', premium: 300 }, // idx 0
+        { carrier: 'Acme', premium: 100 }, // idx 1
+        { carrier: 'Beta', premium: 200 }, // idx 2
       ];
 
-      const result = matchArrays(expected, actual, { carrier: exact, premium: exact });
+      const result = matchArrays(expected, actual, {
+        carrier: exact,
+        premium: exact,
+      });
 
       // Verify exact pairings by index
       expect(result.assignments).toContainEqual([0, 1]); // Acme -> Acme
@@ -502,15 +510,18 @@ describe('matchArrays', () => {
       // Scenario: Greedy would pair E0->A0 (90% match), leaving E1->A1 (50% match)
       // Optimal: E0->A1 (100% match), E1->A0 (80% match) = better total
       const expected = [
-        { carrier: 'Acme', premium: 100 },   // E0
-        { carrier: 'Beta', premium: 200 },   // E1
+        { carrier: 'Acme', premium: 100 }, // E0
+        { carrier: 'Beta', premium: 200 }, // E1
       ];
       const actual = [
-        { carrier: 'Acme', premium: 200 },   // A0: matches E0 carrier, E1 premium
-        { carrier: 'Acme', premium: 100 },   // A1: exact match for E0
+        { carrier: 'Acme', premium: 200 }, // A0: matches E0 carrier, E1 premium
+        { carrier: 'Acme', premium: 100 }, // A1: exact match for E0
       ];
 
-      const result = matchArrays(expected, actual, { carrier: exact, premium: exact });
+      const result = matchArrays(expected, actual, {
+        carrier: exact,
+        premium: exact,
+      });
 
       // Hungarian should find: E0->A1 (exact), E1->A0 (partial)
       expect(result.assignments).toContainEqual([0, 1]); // E0 gets exact match A1
@@ -519,14 +530,14 @@ describe('matchArrays', () => {
 
     it('pairs by closest numeric value with within comparator', () => {
       const expected = [
-        { premium: 100 },  // E0
-        { premium: 200 },  // E1
-        { premium: 300 },  // E2
+        { premium: 100 }, // E0
+        { premium: 200 }, // E1
+        { premium: 300 }, // E2
       ];
       const actual = [
-        { premium: 305 },  // A0: closest to E2
-        { premium: 198 },  // A1: closest to E1
-        { premium: 102 },  // A2: closest to E0
+        { premium: 305 }, // A0: closest to E2
+        { premium: 198 }, // A1: closest to E1
+        { premium: 102 }, // A2: closest to E0
       ];
 
       const result = matchArrays(expected, actual, {
@@ -540,12 +551,12 @@ describe('matchArrays', () => {
 
     it('pairs by closest date with date comparator', () => {
       const expected = [
-        { date: '01/01/2024' },  // E0: Jan 1
-        { date: '01/15/2024' },  // E1: Jan 15
+        { date: '01/01/2024' }, // E0: Jan 1
+        { date: '01/15/2024' }, // E1: Jan 15
       ];
       const actual = [
-        { date: '01/14/2024' },  // A0: Jan 14 - closest to E1
-        { date: '01/02/2024' },  // A1: Jan 2 - closest to E0
+        { date: '01/14/2024' }, // A0: Jan 14 - closest to E1
+        { date: '01/02/2024' }, // A1: Jan 2 - closest to E0
       ];
 
       const result = matchArrays(expected, actual, {
@@ -558,15 +569,19 @@ describe('matchArrays', () => {
 
     it('optimizes multi-field matching for best overall pairing', () => {
       const expected = [
-        { carrier: 'Acme', region: 'US', premium: 100 },   // E0
-        { carrier: 'Acme', region: 'EU', premium: 200 },   // E1
+        { carrier: 'Acme', region: 'US', premium: 100 }, // E0
+        { carrier: 'Acme', region: 'EU', premium: 200 }, // E1
       ];
       const actual = [
-        { carrier: 'Acme', region: 'EU', premium: 200 },   // A0: exact for E1
-        { carrier: 'Acme', region: 'US', premium: 100 },   // A1: exact for E0
+        { carrier: 'Acme', region: 'EU', premium: 200 }, // A0: exact for E1
+        { carrier: 'Acme', region: 'US', premium: 100 }, // A1: exact for E0
       ];
 
-      const result = matchArrays(expected, actual, { carrier: exact, region: exact, premium: exact });
+      const result = matchArrays(expected, actual, {
+        carrier: exact,
+        region: exact,
+        premium: exact,
+      });
 
       // Should find exact matches despite order
       expect(result.assignments).toContainEqual([0, 1]); // E0 -> A1 (US, 100)
@@ -574,13 +589,11 @@ describe('matchArrays', () => {
     });
 
     it('selects best actual when multiple compete for one expected', () => {
-      const expected = [
-        { carrier: 'Target', premium: 500 },
-      ];
+      const expected = [{ carrier: 'Target', premium: 500 }];
       const actual = [
-        { carrier: 'Target', premium: 400 },  // A0: 80% premium match
-        { carrier: 'Target', premium: 500 },  // A1: exact match
-        { carrier: 'Target', premium: 600 },  // A2: 80% premium match
+        { carrier: 'Target', premium: 400 }, // A0: 80% premium match
+        { carrier: 'Target', premium: 500 }, // A1: exact match
+        { carrier: 'Target', premium: 600 }, // A2: 80% premium match
       ];
 
       const result = matchArrays(expected, actual, {
@@ -598,13 +611,13 @@ describe('matchArrays', () => {
       // A0=100 (exact), A1=105, A2=110
       // Optimal: E0->A0, E1->A1 (not both fighting for A0)
       const expected = [
-        { carrier: 'Acme', premium: 100 },  // E0
-        { carrier: 'Acme', premium: 105 },  // E1
+        { carrier: 'Acme', premium: 100 }, // E0
+        { carrier: 'Acme', premium: 105 }, // E1
       ];
       const actual = [
-        { carrier: 'Acme', premium: 100 },  // A0: exact for E0
-        { carrier: 'Acme', premium: 105 },  // A1: exact for E1
-        { carrier: 'Acme', premium: 200 },  // A2: poor match for both
+        { carrier: 'Acme', premium: 100 }, // A0: exact for E0
+        { carrier: 'Acme', premium: 105 }, // A1: exact for E1
+        { carrier: 'Acme', premium: 200 }, // A2: poor match for both
       ];
 
       const result = matchArrays(expected, actual, {
@@ -613,7 +626,7 @@ describe('matchArrays', () => {
 
       expect(result.assignments).toContainEqual([0, 0]); // E0 -> A0 (exact)
       expect(result.assignments).toContainEqual([1, 1]); // E1 -> A1 (exact)
-      expect(result.unmatchedActual).toContain(2);       // A2 unmatched
+      expect(result.unmatchedActual).toContain(2); // A2 unmatched
     });
 
     it('avoids suboptimal greedy pairing in complex scenario', () => {
@@ -621,12 +634,12 @@ describe('matchArrays', () => {
       // Greedy approach: E0->A0 (2 fields match), then E1 stuck with A1 (0 fields match)
       // Optimal: E0->A1 (1 field), E1->A0 (1 field) = both get partial matches
       const expected = [
-        { a: 1, b: 2 },  // E0
-        { a: 3, b: 4 },  // E1
+        { a: 1, b: 2 }, // E0
+        { a: 3, b: 4 }, // E1
       ];
       const actual = [
-        { a: 1, b: 4 },  // A0: shares 'a' with E0, shares 'b' with E1
-        { a: 1, b: 2 },  // A1: exact match for E0
+        { a: 1, b: 4 }, // A0: shares 'a' with E0, shares 'b' with E1
+        { a: 1, b: 2 }, // A1: exact match for E0
       ];
 
       const result = matchArrays(expected, actual, { a: exact, b: exact });
@@ -638,12 +651,12 @@ describe('matchArrays', () => {
 
     it('handles asymmetric matching with more expected than actual', () => {
       const expected = [
-        { id: 1, score: 100 },  // E0
-        { id: 2, score: 200 },  // E1
-        { id: 3, score: 300 },  // E2
+        { id: 1, score: 100 }, // E0
+        { id: 2, score: 200 }, // E1
+        { id: 3, score: 300 }, // E2
       ];
       const actual = [
-        { id: 2, score: 200 },  // A0: exact for E1
+        { id: 2, score: 200 }, // A0: exact for E1
       ];
 
       const result = matchArrays(expected, actual, { id: exact, score: exact });
@@ -655,12 +668,12 @@ describe('matchArrays', () => {
 
     it('handles asymmetric matching with more actual than expected', () => {
       const expected = [
-        { id: 2, score: 200 },  // E0
+        { id: 2, score: 200 }, // E0
       ];
       const actual = [
-        { id: 1, score: 100 },  // A0
-        { id: 2, score: 200 },  // A1: exact for E0
-        { id: 3, score: 300 },  // A2
+        { id: 1, score: 100 }, // A0
+        { id: 2, score: 200 }, // A1: exact for E0
+        { id: 3, score: 300 }, // A2
       ];
 
       const result = matchArrays(expected, actual, { id: exact, score: exact });
@@ -673,8 +686,14 @@ describe('matchArrays', () => {
 
   describe('nested array matching', () => {
     it('matches nested arrays of primitives in different order', () => {
-      const expected = [[1, 2], [3, 4]];
-      const actual = [[3, 4], [1, 2]];
+      const expected = [
+        [1, 2],
+        [3, 4],
+      ];
+      const actual = [
+        [3, 4],
+        [1, 2],
+      ];
 
       const result = matchArrays(expected, actual);
 
@@ -723,14 +742,8 @@ describe('matchArrays', () => {
     });
 
     it('handles mixed nested structures', () => {
-      const expected = [
-        [{ id: 1 }, { id: 2 }],
-        [{ id: 3 }],
-      ];
-      const actual = [
-        [{ id: 3 }],
-        [{ id: 1 }, { id: 2 }],
-      ];
+      const expected = [[{ id: 1 }, { id: 2 }], [{ id: 3 }]];
+      const actual = [[{ id: 3 }], [{ id: 1 }, { id: 2 }]];
 
       const result = matchArrays(expected, actual, { id: exact });
 
@@ -765,12 +778,18 @@ describe('matchArrays', () => {
 
     it('matches complex nested object arrays', () => {
       const expected = [
-        [{ carrier: 'Acme', premium: 100 }, { carrier: 'Beta', premium: 200 }],
+        [
+          { carrier: 'Acme', premium: 100 },
+          { carrier: 'Beta', premium: 200 },
+        ],
         [{ carrier: 'Gamma', premium: 300 }],
       ];
       const actual = [
         [{ carrier: 'Gamma', premium: 300 }],
-        [{ carrier: 'Acme', premium: 100 }, { carrier: 'Beta', premium: 200 }],
+        [
+          { carrier: 'Acme', premium: 100 },
+          { carrier: 'Beta', premium: 200 },
+        ],
       ];
 
       const result = matchArrays(expected, actual, {

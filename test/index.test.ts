@@ -167,7 +167,11 @@ describe('index exports', () => {
     });
 
     it('allows using ComparatorContext', () => {
-      const contextAwareComparator: Comparator<number> = (expected, actual, context?: ComparatorContext) => {
+      const contextAwareComparator: Comparator<number> = (
+        expected,
+        actual,
+        context?: ComparatorContext
+      ) => {
         // context is optional
         return { passed: expected === actual };
       };
@@ -175,7 +179,9 @@ describe('index exports', () => {
     });
 
     it('allows creating typed executors', () => {
-      const myExecutor: Executor<{ id: number }, { name: string }> = async (input) => ({
+      const myExecutor: Executor<{ id: number }, { name: string }> = async (
+        input
+      ) => ({
         output: { name: `User ${input.id}` },
       });
       expect(typeof myExecutor).toBe('function');

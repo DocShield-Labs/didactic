@@ -3,7 +3,7 @@ import type { ComparatorMap } from './types.js';
 import { exact } from './comparators.js'; // Used for primitive comparison
 
 export interface MatchResult {
-  assignments: [number, number][];  // [expIdx, actIdx] - matched pairs
+  assignments: [number, number][]; // [expIdx, actIdx] - matched pairs
   unmatchedExpected: number[];
   unmatchedActual: number[];
 }
@@ -49,7 +49,7 @@ function getSimilarity(
     return result.similarity ?? (result.passed ? 1.0 : 0.0);
   }
 
-  const fields = Object.keys(expected).filter(key => comparators[key]);
+  const fields = Object.keys(expected).filter((key) => comparators[key]);
 
   // Exit early if no fields with comparators to compare
   if (fields.length === 0) {
@@ -59,7 +59,10 @@ function getSimilarity(
   let total = 0;
   for (const key of fields) {
     const comparator = comparators[key];
-    const result = comparator(expected[key], actual[key], { expectedParent: expected, actualParent: actual });
+    const result = comparator(expected[key], actual[key], {
+      expectedParent: expected,
+      actualParent: actual,
+    });
     total += result.similarity ?? (result.passed ? 1.0 : 0.0);
   }
   return total / fields.length;
@@ -97,8 +100,8 @@ export function matchArrays(
   }
 
   // Build cost matrix: cost = 1 - similarity (lower cost = better match)
-  const matrix = expected.map(exp =>
-    actual.map(act => 1 - getSimilarity(exp, act, comparators))
+  const matrix = expected.map((exp) =>
+    actual.map((act) => 1 - getSimilarity(exp, act, comparators))
   );
 
   // Run Hungarian algorithm
@@ -120,7 +123,11 @@ export function matchArrays(
 
   return {
     assignments,
-    unmatchedExpected: [...Array(expected.length).keys()].filter(i => !matchedExp.has(i)),
-    unmatchedActual: [...Array(actual.length).keys()].filter(i => !matchedAct.has(i)),
+    unmatchedExpected: [...Array(expected.length).keys()].filter(
+      (i) => !matchedExp.has(i)
+    ),
+    unmatchedActual: [...Array(actual.length).keys()].filter(
+      (i) => !matchedAct.has(i)
+    ),
   };
 }

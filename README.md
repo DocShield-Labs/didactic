@@ -30,12 +30,18 @@ const result = await didactic.eval({
   testCases: [
     {
       input: { emailId: 'email-123' },
-      expected: { premium: 12500, policyType: 'claims-made', carrier: 'Acme Insurance' },
+      expected: {
+        premium: 12500,
+        policyType: 'claims-made',
+        carrier: 'Acme Insurance',
+      },
     },
   ],
 });
 
-console.log(`${result.passed}/${result.total} passed (${result.accuracy * 100}% field accuracy)`);
+console.log(
+  `${result.passed}/${result.total} passed (${result.accuracy * 100}% field accuracy)`
+);
 ```
 
 ---
@@ -51,7 +57,6 @@ Didactic has three core components:
 **How they work together:** Your executor runs each test case's input through your LLM workflow, returning output that matches your test case's expected output shape. Comparators then evaluate each field of the output against expected values, producing pass/fail results.
 
 In optimization mode, these results feed into an LLM that analyzes failures and generates improved system prompts—repeating until your target success rate or iteration/cost limit is reached.
-
 
 #### Eval Flow
 
@@ -75,18 +80,18 @@ const result = await didactic.eval(config);
 
 #### EvalConfig
 
-| Property | Type | Kind | Required | Default | Description |
-|----------|------|------|----------|---------|-------------|
-| `executor` | `Executor<TInput, TOutput>` | Object | **Yes** | — | Function that executes your LLM workflow. Receives input and optional system prompt, returns structured output. |
-| `testCases` | `TestCase<TInput, TOutput>[]` | Array | **Yes** | — | Array of `{ input, expected }` pairs. Each test case runs through the executor and compares output to expected. |
-| `comparators` | `ComparatorsConfig` | Object/Function | **One of** | — | Comparator(s) for expected vs. actual output. Pass an object of field names to comparators for field-level comparison of objects or list of objects. Or pass a single comparator function for uniform comparison across the entire output (primitives, lists of primitives). |
-| `comparatorOverride` | `Comparator<TOutput>` | Function | **One of** | — | Custom whole-object comparison function. Use when you need complete control over comparison logic and want to bypass field-level matching. |
-| `systemPrompt` | `string` | Primitive | No | — | System prompt passed to the executor. Required if using optimization. |
-| `perTestThreshold` | `number` | Primitive | No | `1.0` | Minimum field pass rate for a test case to pass (0.0–1.0). At default 1.0, all fields must pass. Set to 0.8 to pass if 80% of fields match. |
-| `unorderedList` | `boolean` | Primitive | No | `false` | Enable Hungarian matching for array comparison. When true, arrays are matched by similarity rather than index position. Example: `output = [1, 2, 3, 4], expected = [4, 3, 2, 1]` - you would set `unorderedList` to `true` if you consider this a pass. Use `unorderedList` when your expected output is an array of things and you want to compare the items in the array by similarity rather than index position. Works for object and primitive arrays. |
-| `rateLimitBatch` | `number` | Primitive | No | — | Number of test cases to run concurrently. Use with `rateLimitPause` for rate-limited APIs. |
-| `rateLimitPause` | `number` | Primitive | No | — | Seconds to wait between batches. Pairs with `rateLimitBatch`. |
-| `optimize` | `OptimizeConfig` | Object | No | — | Inline optimization config. When provided, triggers optimization mode instead of single eval. |
+| Property             | Type                          | Kind            | Required   | Default | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------- | ----------------------------- | --------------- | ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `executor`           | `Executor<TInput, TOutput>`   | Object          | **Yes**    | —       | Function that executes your LLM workflow. Receives input and optional system prompt, returns structured output.                                                                                                                                                                                                                                                                                                                                              |
+| `testCases`          | `TestCase<TInput, TOutput>[]` | Array           | **Yes**    | —       | Array of `{ input, expected }` pairs. Each test case runs through the executor and compares output to expected.                                                                                                                                                                                                                                                                                                                                              |
+| `comparators`        | `ComparatorsConfig`           | Object/Function | **One of** | —       | Comparator(s) for expected vs. actual output. Pass an object of field names to comparators for field-level comparison of objects or list of objects. Or pass a single comparator function for uniform comparison across the entire output (primitives, lists of primitives).                                                                                                                                                                                 |
+| `comparatorOverride` | `Comparator<TOutput>`         | Function        | **One of** | —       | Custom whole-object comparison function. Use when you need complete control over comparison logic and want to bypass field-level matching.                                                                                                                                                                                                                                                                                                                   |
+| `systemPrompt`       | `string`                      | Primitive       | No         | —       | System prompt passed to the executor. Required if using optimization.                                                                                                                                                                                                                                                                                                                                                                                        |
+| `perTestThreshold`   | `number`                      | Primitive       | No         | `1.0`   | Minimum field pass rate for a test case to pass (0.0–1.0). At default 1.0, all fields must pass. Set to 0.8 to pass if 80% of fields match.                                                                                                                                                                                                                                                                                                                  |
+| `unorderedList`      | `boolean`                     | Primitive       | No         | `false` | Enable Hungarian matching for array comparison. When true, arrays are matched by similarity rather than index position. Example: `output = [1, 2, 3, 4], expected = [4, 3, 2, 1]` - you would set `unorderedList` to `true` if you consider this a pass. Use `unorderedList` when your expected output is an array of things and you want to compare the items in the array by similarity rather than index position. Works for object and primitive arrays. |
+| `rateLimitBatch`     | `number`                      | Primitive       | No         | —       | Number of test cases to run concurrently. Use with `rateLimitPause` for rate-limited APIs.                                                                                                                                                                                                                                                                                                                                                                   |
+| `rateLimitPause`     | `number`                      | Primitive       | No         | —       | Seconds to wait between batches. Pairs with `rateLimitBatch`.                                                                                                                                                                                                                                                                                                                                                                                                |
+| `optimize`           | `OptimizeConfig`              | Object          | No         | —       | Inline optimization config. When provided, triggers optimization mode instead of single eval.                                                                                                                                                                                                                                                                                                                                                                |
 
 ---
 
@@ -111,21 +116,23 @@ const config = {
     storeLogs: true,
     thinking: true,
   },
-}
+};
 ```
 
 #### OptimizeConfig
 
-| Property | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `systemPrompt` | `string` | **Yes** | — | Initial system prompt to optimize. This is the starting point that the optimizer will iteratively improve. |
-| `targetSuccessRate` | `number` | **Yes** | — | Target success rate to achieve (0.0–1.0). Optimization stops when this rate is reached. |
-| `apiKey` | `string` | **Yes** | — | API key for the LLM provider used by the optimizer (not your workflow's LLM). |
-| `provider` | `LLMProviders` | **Yes** | — | LLM provider the optimizer uses to analyze failures and generate improved prompts. |
-| `maxIterations` | `number` | No | `5` | Maximum optimization iterations before stopping, even if target not reached. |
-| `maxCost` | `number` | No | — | Maximum cost budget in dollars. Optimization stops if cumulative cost exceeds this. |
-| `storeLogs` | `boolean \| string` | No | — | Save optimization logs. `true` uses default path (`./didactic-logs/optimize_<timestamp>/summary.md`), or provide custom summary path. |
-| `thinking` | `boolean` | No | — | Enable extended thinking mode for deeper analysis (provider must support it). |
+| Property            | Type                | Required | Default                                                   | Description                                                                                                                                    |
+| ------------------- | ------------------- | -------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `systemPrompt`      | `string`            | **Yes**  | —                                                         | Initial system prompt to optimize. This is the starting point that the optimizer will iteratively improve.                                     |
+| `targetSuccessRate` | `number`            | **Yes**  | —                                                         | Target success rate to achieve (0.0–1.0). Optimization stops when this rate is reached.                                                        |
+| `apiKey`            | `string`            | **Yes**  | —                                                         | API key for the LLM provider used by the optimizer (not your workflow's LLM).                                                                  |
+| `provider`          | `LLMProviders`      | **Yes**  | —                                                         | LLM provider the optimizer uses to analyze failures and generate improved prompts.                                                             |
+| `maxIterations`     | `number`            | No       | `5`                                                       | Maximum optimization iterations before stopping, even if target not reached.                                                                   |
+| `maxCost`           | `number`            | No       | —                                                         | Maximum cost budget in dollars. Optimization stops if cumulative cost exceeds this.                                                            |
+| `storeLogs`         | `boolean \| string` | No       | —                                                         | Save optimization logs. `true` uses default path (`./didactic-logs/optimize_<timestamp>/summary.md`), or provide custom summary path.          |
+| `thinking`          | `boolean`           | No       | —                                                         | Enable extended thinking mode for deeper analysis (provider must support it).                                                                  |
+| `patchSystemPrompt` | `string`            | No       | [`DEFAULT_PATCH_SYSTEM_PROMPT`](src/optimizer/prompts.ts) | Custom system prompt for patch generation. Completely replaces the default prompt that analyzes failures and suggests improvements.            |
+| `mergeSystemPrompt` | `string`            | No       | [`DEFAULT_MERGE_SYSTEM_PROMPT`](src/optimizer/prompts.ts) | Custom system prompt for merging patches. Completely replaces the default prompt that combines multiple patches into a coherent system prompt. |
 
 ---
 
@@ -134,11 +141,13 @@ const config = {
 Executors abstract your LLM workflow from the evaluation harness. Whether your workflow runs locally, calls a remote API, or orchestrates Temporal activities, executors provide a consistent interface: take input + optional system prompt, return expected output.
 
 This separation enables:
+
 - **Swap execution strategies** — Switch between local/remote without changing tests
 - **Dynamic prompt injection** — System prompts flow through for optimization
 - **Cost tracking** — Aggregate execution costs across test runs
 
 didactic provides two built-in executors:
+
 - `endpoint` for calling a remote API
 - `fn` for calling a local function
 
@@ -147,7 +156,6 @@ You will also want to provide a `mapCost` function to extract the execution cost
 You may want to provide a `mapAdditionalContext` function to extract metadata from the response for debugging.
 
 Note: If you do not provide a `mapResponse` function, the executor will assume the response from the executor is the output you want to compare against `expected`.
-
 
 ### `endpoint(url, config?)`
 
@@ -167,14 +175,14 @@ const executor = endpoint('https://api.example.com/workflow', {
 
 #### EndpointConfig
 
-| Property | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `method` | `'POST' \| 'GET'` | No | `'POST'` | HTTP method for the request. |
-| `headers` | `Record<string, string>` | No | `{}` | Headers to include (auth tokens, content-type overrides, etc). |
-| `mapResponse` | `(response: any) => TOutput` | No | — | Transform the raw response to your expected output shape. Use when your API wraps results. |
-| `mapAdditionalContext` | `(response: any) => unknown` | No | — | Extract metadata (logs, debug info) from response for inspection. |
-| `mapCost` | `(response: any) => number` | No | — | Extract execution cost from response (e.g., token counts in headers). |
-| `timeout` | `number` | No | `30000` | Request timeout in milliseconds. |
+| Property               | Type                         | Required | Default  | Description                                                                                |
+| ---------------------- | ---------------------------- | -------- | -------- | ------------------------------------------------------------------------------------------ |
+| `method`               | `'POST' \| 'GET'`            | No       | `'POST'` | HTTP method for the request.                                                               |
+| `headers`              | `Record<string, string>`     | No       | `{}`     | Headers to include (auth tokens, content-type overrides, etc).                             |
+| `mapResponse`          | `(response: any) => TOutput` | No       | —        | Transform the raw response to your expected output shape. Use when your API wraps results. |
+| `mapAdditionalContext` | `(response: any) => unknown` | No       | —        | Extract metadata (logs, debug info) from response for inspection.                          |
+| `mapCost`              | `(response: any) => number`  | No       | —        | Extract execution cost from response (e.g., token counts in headers).                      |
+| `timeout`              | `number`                     | No       | `30000`  | Request timeout in milliseconds.                                                           |
 
 ---
 
@@ -190,19 +198,24 @@ const executor = fn({
     return await myLLMCall(input, systemPrompt);
   },
   mapResponse: (result) => result.output,
-  mapCost: (result) => result.usage.input_tokens * 0.000003 + result.usage.output_tokens * 0.000015,
-  mapAdditionalContext: (result) => ({ model: result.model, finishReason: result.stop_reason }),
+  mapCost: (result) =>
+    result.usage.input_tokens * 0.000003 +
+    result.usage.output_tokens * 0.000015,
+  mapAdditionalContext: (result) => ({
+    model: result.model,
+    finishReason: result.stop_reason,
+  }),
 });
 ```
 
 #### FnConfig
 
-| Property | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| `fn` | `(input: TInput, systemPrompt?: string) => Promise<TRaw>` | **Yes** | — | Async function that executes your workflow. Receives test input and optional system prompt. |
-| `mapResponse` | `(result: TRaw) => TOutput` | No | — | Transform raw result from fn into the expected output shape to compare. Without this, raw result is used directly. |
-| `mapAdditionalContext` | `(result: TRaw) => unknown` | No | — | Map additional context about the run to pass to the optimizer prompt. |
-| `mapCost` | `(result: TRaw) => number` | No | — | Extract cost from the result (if your function tracks it). Used to track the total cost of the runs. |
+| Property               | Type                                                      | Required | Default | Description                                                                                                        |
+| ---------------------- | --------------------------------------------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
+| `fn`                   | `(input: TInput, systemPrompt?: string) => Promise<TRaw>` | **Yes**  | —       | Async function that executes your workflow. Receives test input and optional system prompt.                        |
+| `mapResponse`          | `(result: TRaw) => TOutput`                               | No       | —       | Transform raw result from fn into the expected output shape to compare. Without this, raw result is used directly. |
+| `mapAdditionalContext` | `(result: TRaw) => unknown`                               | No       | —       | Map additional context about the run to pass to the optimizer prompt.                                              |
+| `mapCost`              | `(result: TRaw) => number`                                | No       | —       | Extract cost from the result (if your function tracks it). Used to track the total cost of the runs.               |
 
 ---
 
@@ -232,6 +245,7 @@ const executor = fn({
 ```
 
 Without `mapResponse`:
+
 - **endpoint**: uses the raw JSON response as output
 - **fn**: uses the function's return value directly as output
 
@@ -306,7 +320,7 @@ Use **`comparators`** for standard comparison. It accepts either:
 // Clean syntax for primitives, arrays, or simple objects
 const result = await didactic.eval({
   executor: myNumberExtractor,
-  comparators: exact,  // Single comparator, no need for { '': exact }
+  comparators: exact, // Single comparator, no need for { '': exact }
   testCases: [
     { input: 'twenty-three', expected: 23 },
     { input: 'one hundred', expected: 100 },
@@ -317,10 +331,8 @@ const result = await didactic.eval({
 const result = await didactic.eval({
   executor: myListExtractor,
   comparators: exact,
-  unorderedList: true,  // Enable Hungarian matching for unordered arrays
-  testCases: [
-    { input: 'numbers', expected: [1, 2, 3, 4] },
-  ],
+  unorderedList: true, // Enable Hungarian matching for unordered arrays
+  testCases: [{ input: 'numbers', expected: [1, 2, 3, 4] }],
 });
 ```
 
@@ -330,20 +342,25 @@ const result = await didactic.eval({
 const result = await didactic.eval({
   executor: myExecutor,
   comparators: {
-    premium: within({ tolerance: 0.05 }),  // 5% tolerance for numbers
-    carrier: exact,                         // Exact string match
-    effectiveDate: date,                    // Flexible date parsing
+    premium: within({ tolerance: 0.05 }), // 5% tolerance for numbers
+    carrier: exact, // Exact string match
+    effectiveDate: date, // Flexible date parsing
   },
   testCases: [
     {
       input: { emailId: 'email-123' },
-      expected: { premium: 12500, carrier: 'Acme Insurance', effectiveDate: '2024-01-15' },
+      expected: {
+        premium: 12500,
+        carrier: 'Acme Insurance',
+        effectiveDate: '2024-01-15',
+      },
     },
   ],
 });
 ```
 
 Use **`comparatorOverride`** when you need:
+
 - Complete control over comparison logic
 - Custom cross-field validation
 - Whole-object semantic comparison that doesn't map to individual fields
@@ -365,27 +382,37 @@ const result = await didactic.eval({
 
 ### Built-in Comparators
 
-| Comparator | Signature | Description |
-|------------|-----------|-------------|
-| `exact` | `(expected, actual)` | Deep equality with cycle detection. Default when no comparator specified. |
-| `within` | `({ tolerance, mode? })` | Numeric tolerance. `mode: 'percentage'` (default) or `'absolute'`. |
-| `oneOf` | `(allowedValues)` | Enum validation. Passes if actual equals expected AND both are in the allowed set. |
-| `contains` | `(substring)` | String contains check. Passes if actual includes the substring. |
-| `presence` | `(expected, actual)` | Existence check. Passes if expected is absent, or if actual has any value when expected does. |
-| `numeric` | `(expected, actual)` | Numeric comparison after stripping currency symbols, commas, accounting notation. |
-| `numeric.nullable` | `(expected, actual)` | Same as `numeric`, but treats null/undefined/empty as 0. |
-| `date` | `(expected, actual)` | Date comparison after normalizing formats (ISO, US MM/DD, EU DD/MM, written). |
-| `name` | `(expected, actual)` | Name comparison with case normalization, suffix removal (Inc, LLC), fuzzy matching. |
-| `custom` | `({ compare })` | User-defined logic. `compare(expected, actual, context?) => boolean`. Context provides access to parent objects for cross-field logic. |
+| Comparator         | Signature                | Description                                                                                                                            |
+| ------------------ | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `exact`            | `(expected, actual)`     | Deep equality with cycle detection. Default when no comparator specified.                                                              |
+| `within`           | `({ tolerance, mode? })` | Numeric tolerance. `mode: 'percentage'` (default) or `'absolute'`.                                                                     |
+| `oneOf`            | `(allowedValues)`        | Enum validation. Passes if actual equals expected AND both are in the allowed set.                                                     |
+| `contains`         | `(substring)`            | String contains check. Passes if actual includes the substring.                                                                        |
+| `presence`         | `(expected, actual)`     | Existence check. Passes if expected is absent, or if actual has any value when expected does.                                          |
+| `numeric`          | `(expected, actual)`     | Numeric comparison after stripping currency symbols, commas, accounting notation.                                                      |
+| `numeric.nullable` | `(expected, actual)`     | Same as `numeric`, but treats null/undefined/empty as 0.                                                                               |
+| `date`             | `(expected, actual)`     | Date comparison after normalizing formats (ISO, US MM/DD, EU DD/MM, written).                                                          |
+| `name`             | `(expected, actual)`     | Name comparison with case normalization, suffix removal (Inc, LLC), fuzzy matching.                                                    |
+| `custom`           | `({ compare })`          | User-defined logic. `compare(expected, actual, context?) => boolean`. Context provides access to parent objects for cross-field logic. |
 
 ### Examples
 
 ```typescript
-import { within, oneOf, exact, contains, presence, numeric, date, name, custom } from '@docshield/didactic';
+import {
+  within,
+  oneOf,
+  exact,
+  contains,
+  presence,
+  numeric,
+  date,
+  name,
+  custom,
+} from '@docshield/didactic';
 
 const comparators = {
-  premium: within({ tolerance: 0.05 }),                      // 5% tolerance
-  deductible: within({ tolerance: 100, mode: 'absolute' }),  // $100 tolerance
+  premium: within({ tolerance: 0.05 }), // 5% tolerance
+  deductible: within({ tolerance: 100, mode: 'absolute' }), // $100 tolerance
   policyType: oneOf(['claims-made', 'occurrence', 'entity']),
   carrier: exact,
   notes: contains('approved'),
@@ -412,13 +439,13 @@ Supported LLM providers for the optimizer:
 import { LLMProviders } from '@docshield/didactic';
 ```
 
-| Value | Description |
-|-------|-------------|
-| `LLMProviders.anthropic_claude_opus` | Claude Opus 4.5 — Most capable, highest cost |
+| Value                                  | Description                                   |
+| -------------------------------------- | --------------------------------------------- |
+| `LLMProviders.anthropic_claude_opus`   | Claude Opus 4.5 — Most capable, highest cost  |
 | `LLMProviders.anthropic_claude_sonnet` | Claude Sonnet 4.5 — Balanced performance/cost |
-| `LLMProviders.anthropic_claude_haiku` | Claude Haiku 4.5 — Fastest, lowest cost |
-| `LLMProviders.openai_gpt5` | GPT-5.2 — OpenAI flagship |
-| `LLMProviders.openai_gpt5_mini` | GPT-5 Mini — OpenAI lightweight |
+| `LLMProviders.anthropic_claude_haiku`  | Claude Haiku 4.5 — Fastest, lowest cost       |
+| `LLMProviders.openai_gpt5`             | GPT-5.2 — OpenAI flagship                     |
+| `LLMProviders.openai_gpt5_mini`        | GPT-5 Mini — OpenAI lightweight               |
 
 ---
 
@@ -428,60 +455,60 @@ import { LLMProviders } from '@docshield/didactic';
 
 Returned by `didactic.eval()` when no optimization is configured.
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `systemPrompt` | `string \| undefined` | System prompt that was used for this eval run. |
-| `testCases` | `TestCaseResult[]` | Detailed results for each test case. Inspect for field-level failure details. |
-| `passed` | `number` | Count of test cases that passed (met `perTestThreshold`). |
-| `total` | `number` | Total number of test cases run. |
-| `successRate` | `number` | Pass rate (0.0–1.0). `passed / total`. |
-| `correctFields` | `number` | Total correct fields across all test cases. |
-| `totalFields` | `number` | Total fields evaluated across all test cases. |
-| `accuracy` | `number` | Field-level accuracy (0.0–1.0). `correctFields / totalFields`. |
-| `cost` | `number` | Total execution cost aggregated from executor results. |
+| Property        | Type                  | Description                                                                   |
+| --------------- | --------------------- | ----------------------------------------------------------------------------- |
+| `systemPrompt`  | `string \| undefined` | System prompt that was used for this eval run.                                |
+| `testCases`     | `TestCaseResult[]`    | Detailed results for each test case. Inspect for field-level failure details. |
+| `passed`        | `number`              | Count of test cases that passed (met `perTestThreshold`).                     |
+| `total`         | `number`              | Total number of test cases run.                                               |
+| `successRate`   | `number`              | Pass rate (0.0–1.0). `passed / total`.                                        |
+| `correctFields` | `number`              | Total correct fields across all test cases.                                   |
+| `totalFields`   | `number`              | Total fields evaluated across all test cases.                                 |
+| `accuracy`      | `number`              | Field-level accuracy (0.0–1.0). `correctFields / totalFields`.                |
+| `cost`          | `number`              | Total execution cost aggregated from executor results.                        |
 
 ### TestCaseResult
 
 Per-test-case detail, accessible via `EvalResult.testCases`.
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `input` | `TInput` | The input that was passed to the executor. |
-| `expected` | `TOutput` | The expected output from the test case. |
-| `actual` | `TOutput \| undefined` | Actual output returned by executor. Undefined if execution failed. |
-| `passed` | `boolean` | Whether this test case passed (met `perTestThreshold`). |
-| `fields` | `Record<string, FieldResult>` | Per-field comparison results. Key is field path (e.g., `"address.city"`). |
-| `passedFields` | `number` | Count of fields that passed comparison. |
-| `totalFields` | `number` | Total fields compared. |
-| `passRate` | `number` | Field pass rate for this test case (0.0–1.0). |
-| `cost` | `number \| undefined` | Execution cost for this test case, if reported by executor. |
-| `additionalContext` | `unknown \| undefined` | Extra context extracted by executor (logs, debug info). |
-| `error` | `string \| undefined` | Error message if executor threw an exception. |
+| Property            | Type                          | Description                                                               |
+| ------------------- | ----------------------------- | ------------------------------------------------------------------------- |
+| `input`             | `TInput`                      | The input that was passed to the executor.                                |
+| `expected`          | `TOutput`                     | The expected output from the test case.                                   |
+| `actual`            | `TOutput \| undefined`        | Actual output returned by executor. Undefined if execution failed.        |
+| `passed`            | `boolean`                     | Whether this test case passed (met `perTestThreshold`).                   |
+| `fields`            | `Record<string, FieldResult>` | Per-field comparison results. Key is field path (e.g., `"address.city"`). |
+| `passedFields`      | `number`                      | Count of fields that passed comparison.                                   |
+| `totalFields`       | `number`                      | Total fields compared.                                                    |
+| `passRate`          | `number`                      | Field pass rate for this test case (0.0–1.0).                             |
+| `cost`              | `number \| undefined`         | Execution cost for this test case, if reported by executor.               |
+| `additionalContext` | `unknown \| undefined`        | Extra context extracted by executor (logs, debug info).                   |
+| `error`             | `string \| undefined`         | Error message if executor threw an exception.                             |
 
 ### OptimizeResult
 
 Returned by `didactic.optimize()` or `didactic.eval()` with optimization configured.
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `success` | `boolean` | Whether the target success rate was achieved. |
-| `finalPrompt` | `string` | The final optimized system prompt. Use this in production. |
-| `iterations` | `IterationResult[]` | Results from each optimization iteration. Inspect to see how the prompt evolved. |
-| `totalCost` | `number` | Total cost across all iterations (optimizer + executor costs). |
-| `logFolder` | `string \| undefined` | Folder path where optimization logs were written (only when `storeLogs` is enabled). |
+| Property      | Type                  | Description                                                                          |
+| ------------- | --------------------- | ------------------------------------------------------------------------------------ |
+| `success`     | `boolean`             | Whether the target success rate was achieved.                                        |
+| `finalPrompt` | `string`              | The final optimized system prompt. Use this in production.                           |
+| `iterations`  | `IterationResult[]`   | Results from each optimization iteration. Inspect to see how the prompt evolved.     |
+| `totalCost`   | `number`              | Total cost across all iterations (optimizer + executor costs).                       |
+| `logFolder`   | `string \| undefined` | Folder path where optimization logs were written (only when `storeLogs` is enabled). |
 
 ### IterationResult
 
 Per-iteration detail, accessible via `OptimizeResult.iterations`.
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `iteration` | `number` | Iteration number (1-indexed). |
-| `systemPrompt` | `string` | System prompt used for this iteration. |
-| `passed` | `number` | Test cases passed in this iteration. |
-| `total` | `number` | Total test cases in this iteration. |
-| `testCases` | `TestCaseResult[]` | Detailed test case results for this iteration. |
-| `cost` | `number` | Cost for this iteration. |
+| Property       | Type               | Description                                    |
+| -------------- | ------------------ | ---------------------------------------------- |
+| `iteration`    | `number`           | Iteration number (1-indexed).                  |
+| `systemPrompt` | `string`           | System prompt used for this iteration.         |
+| `passed`       | `number`           | Test cases passed in this iteration.           |
+| `total`        | `number`           | Total test cases in this iteration.            |
+| `testCases`    | `TestCaseResult[]` | Detailed test case results for this iteration. |
+| `cost`         | `number`           | Cost for this iteration.                       |
 
 ---
 
@@ -491,12 +518,12 @@ When `storeLogs` is enabled in `OptimizeConfig`, four files are written to the l
 
 **Default path:** `./didactic-logs/optimize_<timestamp>/`
 
-| File | Description |
-|------|-------------|
-| `summary.md` | Human-readable report with configuration, metrics, and iteration progress |
-| `prompts.md` | All system prompts used in each iteration |
-| `rawData.json` | Complete iteration data for programmatic analysis |
-| `bestRun.json` | Detailed results from the best-performing iteration |
+| File           | Description                                                               |
+| -------------- | ------------------------------------------------------------------------- |
+| `summary.md`   | Human-readable report with configuration, metrics, and iteration progress |
+| `prompts.md`   | All system prompts used in each iteration                                 |
+| `rawData.json` | Complete iteration data for programmatic analysis                         |
+| `bestRun.json` | Detailed results from the best-performing iteration                       |
 
 ### rawData.json
 
@@ -505,17 +532,17 @@ Contains the complete optimization run data for programmatic analysis:
 ```typescript
 interface OptimizationReport {
   metadata: {
-    timestamp: string;              // ISO timestamp
-    model: string;                  // LLM model used
-    provider: string;               // Provider (anthropic, openai, etc)
-    thinking: boolean;              // Extended thinking enabled
-    targetSuccessRate: number;      // Target (0.0-1.0)
-    maxIterations: number | null;   // Max iterations or null
-    maxCost: number | null;         // Max cost budget or null
-    testCaseCount: number;          // Number of test cases
-    perTestThreshold: number;       // Per-test threshold (default 1.0)
-    rateLimitBatch?: number;        // Batch size for rate limiting
-    rateLimitPause?: number;        // Pause seconds between batches
+    timestamp: string; // ISO timestamp
+    model: string; // LLM model used
+    provider: string; // Provider (anthropic, openai, etc)
+    thinking: boolean; // Extended thinking enabled
+    targetSuccessRate: number; // Target (0.0-1.0)
+    maxIterations: number | null; // Max iterations or null
+    maxCost: number | null; // Max cost budget or null
+    testCaseCount: number; // Number of test cases
+    perTestThreshold: number; // Per-test threshold (default 1.0)
+    rateLimitBatch?: number; // Batch size for rate limiting
+    rateLimitPause?: number; // Pause seconds between batches
   };
   summary: {
     totalIterations: number;
@@ -523,16 +550,16 @@ interface OptimizationReport {
     totalCost: number;
     totalInputTokens: number;
     totalOutputTokens: number;
-    startRate: number;              // Success rate at start
-    endRate: number;                // Success rate at end
+    startRate: number; // Success rate at start
+    endRate: number; // Success rate at end
     targetMet: boolean;
   };
   best: {
-    iteration: number;              // Which iteration was best
-    successRate: number;            // Success rate (0.0-1.0)
-    passed: number;                 // Number of passing tests
-    total: number;                  // Total tests
-    fieldAccuracy: number;          // Field-level accuracy
+    iteration: number; // Which iteration was best
+    successRate: number; // Success rate (0.0-1.0)
+    passed: number; // Number of passing tests
+    total: number; // Total tests
+    fieldAccuracy: number; // Field-level accuracy
   };
   iterations: Array<{
     iteration: number;
@@ -542,8 +569,8 @@ interface OptimizationReport {
     correctFields: number;
     totalFields: number;
     fieldAccuracy: number;
-    cost: number;                   // Cost for this iteration
-    cumulativeCost: number;         // Total cost so far
+    cost: number; // Cost for this iteration
+    cumulativeCost: number; // Total cost so far
     durationMs: number;
     inputTokens: number;
     outputTokens: number;
@@ -552,7 +579,10 @@ interface OptimizationReport {
       input: unknown;
       expected: unknown;
       actual: unknown;
-      fields: Record<string, { expected: unknown; actual: unknown; passed: boolean }>;
+      fields: Record<
+        string,
+        { expected: unknown; actual: unknown; passed: boolean }
+      >;
     }>;
   }>;
 }
@@ -565,7 +595,7 @@ Contains detailed results from the best-performing iteration, with test results 
 ```typescript
 interface BestRunReport {
   metadata: {
-    iteration: number;              // Which iteration was best
+    iteration: number; // Which iteration was best
     model: string;
     provider: string;
     thinking: boolean;
@@ -575,38 +605,41 @@ interface BestRunReport {
     rateLimitPause?: number;
   };
   results: {
-    successRate: number;            // Overall success rate
-    passed: number;                 // Passed tests
-    total: number;                  // Total tests
-    fieldAccuracy: number;          // Field-level accuracy
+    successRate: number; // Overall success rate
+    passed: number; // Passed tests
+    total: number; // Total tests
+    fieldAccuracy: number; // Field-level accuracy
     correctFields: number;
     totalFields: number;
   };
   cost: {
-    iteration: number;              // Cost for this iteration
-    cumulative: number;             // Total cumulative cost
+    iteration: number; // Cost for this iteration
+    cumulative: number; // Total cumulative cost
   };
   timing: {
     durationMs: number;
     inputTokens: number;
     outputTokens: number;
   };
-  failures: Array<{                 // Tests that didnt meet the configured perTestThreshold
+  failures: Array<{
+    // Tests that didnt meet the configured perTestThreshold
     testIndex: number;
     input: unknown;
     expected: unknown;
     actual: unknown;
     failedFields: Record<string, { expected: unknown; actual: unknown }>;
   }>;
-  partialFailures: Array<{          // Tests that passed but have some failing fields
+  partialFailures: Array<{
+    // Tests that passed but have some failing fields
     testIndex: number;
-    passRate: number;               // Percentage of fields passing
+    passRate: number; // Percentage of fields passing
     input: unknown;
     expected: unknown;
     actual: unknown;
     failedFields: Record<string, { expected: unknown; actual: unknown }>;
   }>;
-  successes: Array<{                // Tests with 100% field accuracy
+  successes: Array<{
+    // Tests with 100% field accuracy
     testIndex: number;
     input: unknown;
     expected: unknown;
@@ -622,10 +655,20 @@ interface BestRunReport {
 ```typescript
 // Namespace
 import { didactic } from '@docshield/didactic';
-import didactic from '@docshield/didactic';  // default export
+import didactic from '@docshield/didactic'; // default export
 
 // Comparators
-import { exact, within, oneOf, contains, presence, numeric, date, name, custom } from '@docshield/didactic';
+import {
+  exact,
+  within,
+  oneOf,
+  contains,
+  presence,
+  numeric,
+  date,
+  name,
+  custom,
+} from '@docshield/didactic';
 
 // Executors
 import { endpoint, fn } from '@docshield/didactic';

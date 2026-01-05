@@ -17,19 +17,28 @@ export type {
   EvalResult,
   // Optimizer types
   Message,
-  OptimizeConfig,
   IterationResult,
   OptimizeResult,
+  OptimizeConfig,
+  ProviderSpec,
+  LLMProviders,
 } from './types.js';
-
-// Re-export LLM provider enum
-export { LLMProviders } from './types.js';
 
 // Re-export executor config types
 export type { EndpointConfig, FnConfig } from './executors.js';
 
 // Re-export comparators
-export { within, oneOf, presence, custom, exact, contains, numeric, date, name } from './comparators.js';
+export {
+  within,
+  oneOf,
+  presence,
+  custom,
+  exact,
+  contains,
+  numeric,
+  date,
+  name,
+} from './comparators.js';
 
 // Re-export executors
 export { endpoint, fn, mock } from './executors.js';
@@ -38,22 +47,36 @@ export { endpoint, fn, mock } from './executors.js';
 export { evaluate } from './eval.js';
 
 // Re-export optimizer
-export { optimize } from './optimizer.js';
+export { optimize } from './optimizer/optimizer.js';
 
 // Main didact namespace
-import type { EvalConfig, EvalResult, Executor, OptimizeConfig, OptimizeResult } from './types.js';
+import type {
+  EvalConfig,
+  EvalResult,
+  Executor,
+  OptimizeConfig,
+} from './types.js';
+import type { OptimizeResult } from './optimizer/types.js';
 import type { EndpointConfig, FnConfig } from './executors.js';
 import { evaluate } from './eval.js';
-import { optimize as runOptimize } from './optimizer.js';
+import { optimize as runOptimize } from './optimizer/optimizer.js';
 import { endpoint as createEndpoint, fn as createFn } from './executors.js';
 
 /**
  * Overloaded eval function with proper return type inference.
  */
-function didacticEval<TInput, TOutput>(config: EvalConfig<TInput, TOutput> & { optimize: OptimizeConfig }): Promise<OptimizeResult<TInput, TOutput>>;
-function didacticEval<TInput, TOutput>(config: EvalConfig<TInput, TOutput> & { optimize?: undefined }): Promise<EvalResult<TInput, TOutput>>;
-function didacticEval<TInput, TOutput>(config: EvalConfig<TInput, TOutput>): Promise<EvalResult<TInput, TOutput> | OptimizeResult<TInput, TOutput>>;
-function didacticEval<TInput, TOutput>(config: EvalConfig<TInput, TOutput>): Promise<EvalResult<TInput, TOutput> | OptimizeResult<TInput, TOutput>> {
+function didacticEval<TInput, TOutput>(
+  config: EvalConfig<TInput, TOutput> & { optimize: OptimizeConfig }
+): Promise<OptimizeResult<TInput, TOutput>>;
+function didacticEval<TInput, TOutput>(
+  config: EvalConfig<TInput, TOutput> & { optimize?: undefined }
+): Promise<EvalResult<TInput, TOutput>>;
+function didacticEval<TInput, TOutput>(
+  config: EvalConfig<TInput, TOutput>
+): Promise<EvalResult<TInput, TOutput> | OptimizeResult<TInput, TOutput>>;
+function didacticEval<TInput, TOutput>(
+  config: EvalConfig<TInput, TOutput>
+): Promise<EvalResult<TInput, TOutput> | OptimizeResult<TInput, TOutput>> {
   if (config.optimize) {
     const { optimize, ...evalConfig } = config;
     return runOptimize(evalConfig, optimize);

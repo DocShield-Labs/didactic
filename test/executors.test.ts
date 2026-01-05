@@ -63,7 +63,8 @@ describe('endpoint', () => {
   it('uses mapResponse to transform the response', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ data: { value: 42 }, meta: { cost: 0.05 } }),
+      json: () =>
+        Promise.resolve({ data: { value: 42 }, meta: { cost: 0.05 } }),
     });
 
     const executor = endpoint('https://api.example.com/workflow', {
@@ -84,7 +85,9 @@ describe('endpoint', () => {
 
     const executor = endpoint('https://api.example.com/workflow');
 
-    await expect(executor({}, 'prompt')).rejects.toThrow('HTTP 500: Internal Server Error');
+    await expect(executor({}, 'prompt')).rejects.toThrow(
+      'HTTP 500: Internal Server Error'
+    );
   });
 
   it('respects abort signal on timeout', async () => {
@@ -99,7 +102,9 @@ describe('endpoint', () => {
       });
     });
 
-    const executor = endpoint('https://api.example.com/workflow', { timeout: 5000 });
+    const executor = endpoint('https://api.example.com/workflow', {
+      timeout: 5000,
+    });
     await executor({}, 'prompt');
 
     expect(capturedSignal).toBeDefined();
@@ -160,7 +165,9 @@ describe('endpoint', () => {
     });
 
     const executor = endpoint('https://api.example.com/workflow');
-    await expect(executor({}, 'prompt')).rejects.toThrow('HTTP 400: Bad Request');
+    await expect(executor({}, 'prompt')).rejects.toThrow(
+      'HTTP 400: Bad Request'
+    );
 
     // 401 Unauthorized
     globalThis.fetch = vi.fn().mockResolvedValue({
@@ -169,7 +176,9 @@ describe('endpoint', () => {
       text: () => Promise.resolve('Unauthorized'),
     });
 
-    await expect(executor({}, 'prompt')).rejects.toThrow('HTTP 401: Unauthorized');
+    await expect(executor({}, 'prompt')).rejects.toThrow(
+      'HTTP 401: Unauthorized'
+    );
 
     // 404 Not Found
     globalThis.fetch = vi.fn().mockResolvedValue({
@@ -193,7 +202,9 @@ describe('endpoint', () => {
       });
     });
 
-    const executor = endpoint('https://api.example.com/workflow', { timeout: 5000 });
+    const executor = endpoint('https://api.example.com/workflow', {
+      timeout: 5000,
+    });
     await executor({}, 'prompt');
 
     expect(capturedSignal).toBeDefined();
@@ -208,7 +219,9 @@ describe('endpoint', () => {
       json: () => Promise.resolve({}),
     });
 
-    const executor = endpoint('https://api.example.com/workflow', { timeout: 5000 });
+    const executor = endpoint('https://api.example.com/workflow', {
+      timeout: 5000,
+    });
     await executor({}, 'prompt');
 
     expect(clearTimeoutSpy).toHaveBeenCalled();
