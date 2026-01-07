@@ -1,32 +1,11 @@
-import type { TestCaseResult } from '../types.js';
+import type { TestCaseResult, LLMProviders } from '../types.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PUBLIC API TYPES
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Chat message for LLM calls.
- */
-export interface Message {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
-
-/**
- * Supported LLM providers.
- */
-export enum LLMProviders {
-  // Anthropic Claude 4.5
-  anthropic_claude_opus = 'anthropic_claude_opus',
-  anthropic_claude_sonnet = 'anthropic_claude_sonnet',
-  anthropic_claude_haiku = 'anthropic_claude_haiku',
-  // OpenAI GPT-5
-  openai_gpt5 = 'openai_gpt5',
-  openai_gpt5_mini = 'openai_gpt5_mini',
-}
-
-/**
- * LLM provider specification.
+ * LLM provider specification (internal configuration).
  */
 export interface ProviderSpec {
   model: string;
@@ -77,16 +56,6 @@ export interface OptimizeResult<TInput = unknown, TOutput = unknown> {
 // ═══════════════════════════════════════════════════════════════════════════
 // INTERNAL TYPES
 // ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Result from an LLM call (patch generation or merge).
- */
-export interface LLMResult {
-  text: string;
-  cost: number;
-  inputTokens: number;
-  outputTokens: number;
-}
 
 /**
  * Internal log entry for a single optimization iteration.

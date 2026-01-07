@@ -47,7 +47,7 @@ export async function evaluate<TInput, TOutput>(
       let fields: Record<string, FieldResult>;
       if (comparatorOverride) {
         // Whole-object comparison mode (custom override)
-        const compResult = comparatorOverride(expected, result.output);
+        const compResult = await comparatorOverride(expected, result.output);
         fields = {
           '': {
             passed: compResult.passed,
@@ -59,7 +59,7 @@ export async function evaluate<TInput, TOutput>(
         // Arrays always use element-wise comparison (for better debugging)
         if (Array.isArray(expected)) {
           // Descend into array elements (ordered or unordered based on config.unorderedList)
-          fields = compareFields({
+          fields = await compareFields({
             expected,
             actual: result.output,
             comparators: { '': comparators },
@@ -67,7 +67,7 @@ export async function evaluate<TInput, TOutput>(
           });
         } else {
           // Primitives and objects: whole-object comparison
-          const compResult = comparators(expected, result.output, {
+          const compResult = await comparators(expected, result.output, {
             expectedParent: undefined,
             actualParent: undefined,
           });
@@ -81,7 +81,7 @@ export async function evaluate<TInput, TOutput>(
         }
       } else {
         // Field-level comparison mode (field mapping)
-        fields = compareFields({
+        fields = await compareFields({
           expected,
           actual: result.output,
           comparators,
@@ -95,12 +95,19 @@ export async function evaluate<TInput, TOutput>(
       const threshold = config.perTestThreshold ?? DEFAULT_PER_TEST_THRESHOLD;
       const passed = passRate >= threshold;
 
+      // Aggregate comparator costs from all fields
+      const comparatorCost = Object.values(fields).reduce(
+        (sum, field) => sum + (field.cost ?? 0),
+        0
+      );
+
       return {
         input,
         expected,
         actual: result.output,
         additionalContext: result.additionalContext,
         cost: result.cost ?? 0,
+        comparatorCost,
         passed,
         fields,
         passedFields,
@@ -113,6 +120,7 @@ export async function evaluate<TInput, TOutput>(
         expected,
         actual: undefined,
         cost: 0,
+        comparatorCost: 0,
         passed: false,
         fields: {},
         passedFields: 0,
@@ -169,6 +177,10 @@ export async function evaluate<TInput, TOutput>(
   }
   const accuracy = totalFields > 0 ? correctFields / totalFields : 0;
   const cost = results.reduce((sum, r) => sum + (r.cost ?? 0), 0);
+  const comparatorCost = results.reduce(
+    (sum, r) => sum + (r.comparatorCost ?? 0),
+    0
+  );
 
   return {
     systemPrompt,
@@ -180,6 +192,7 @@ export async function evaluate<TInput, TOutput>(
     totalFields,
     accuracy,
     cost,
+    comparatorCost,
   };
 }
 
@@ -187,7 +200,7 @@ export async function evaluate<TInput, TOutput>(
  * Recursively compare expected vs actual, returning field-level results.
  * Path patterns: 'carrier', 'quote.premium', '[0]', 'quotes[0].carrier'
  */
-function compareFields(opts: {
+async function compareFields(opts: {
   expected: unknown;
   actual: unknown;
   comparators: ComparatorMap;
@@ -195,7 +208,7 @@ function compareFields(opts: {
   expectedParent?: unknown;
   actualParent?: unknown;
   unorderedList?: boolean;
-}): Record<string, FieldResult> {
+}): Promise<Record<string, FieldResult>> {
   const {
     expected,
     actual,
@@ -222,7 +235,8 @@ function compareFields(opts: {
 
     // If unorderedList is true, use the matching algorithm to find the best pairs (expected[i] -> actual[j])
     if (unorderedList) {
-      matchedPairs = matchArrays(expected, actual, comparators).assignments;
+      matchedPairs = (await matchArrays(expected, actual, comparators))
+        .assignments;
     } else {
       // Otherwise, use the simple index-based pairing (expected[i] -> actual[i])
       matchedPairs = [];
@@ -237,7 +251,7 @@ function compareFields(opts: {
     for (const [expIdx, actIdx] of matchedPairs) {
       Object.assign(
         results,
-        compareFields({
+        await compareFields({
           expected: expected[expIdx],
           actual: actual[actIdx],
           comparators,
@@ -290,7 +304,7 @@ function compareFields(opts: {
       const fieldPath = path ? `${path}.${field}` : field;
       Object.assign(
         results,
-        compareFields({
+        await compareFields({
           expected: expValue,
           actual: actual[field],
           comparators,
@@ -314,8 +328,17 @@ function compareFields(opts: {
     return {};
   }
 
-  const result = comparator(expected, actual, { expectedParent, actualParent });
-  return { [path]: { ...result, expected, actual } };
+  const result = await comparator(expected, actual, {
+    expectedParent,
+    actualParent,
+  });
+  return {
+    [path]: {
+      ...result,
+      expected,
+      actual,
+    },
+  };
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

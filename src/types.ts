@@ -1,18 +1,37 @@
-// Re-export optimizer types for convenience
+import type { OptimizeConfig } from './optimizer/types.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LLM PROVIDERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Supported LLM providers.
+ * Used by both optimizer and LLM-based comparators.
+ */
+export enum LLMProviders {
+  // Anthropic Claude 4.5
+  anthropic_claude_opus = 'anthropic_claude_opus',
+  anthropic_claude_sonnet = 'anthropic_claude_sonnet',
+  anthropic_claude_haiku = 'anthropic_claude_haiku',
+  // OpenAI GPT-5
+  openai_gpt5 = 'openai_gpt5',
+  openai_gpt5_mini = 'openai_gpt5_mini',
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OPTIMIZER
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Re-export public optimizer types
 export type {
   OptimizeConfig,
-  Message,
   IterationResult,
   OptimizeResult,
-  ProviderSpec,
 } from './optimizer/types.js';
-export { LLMProviders } from './optimizer/types.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COMPARATORS
 // ═══════════════════════════════════════════════════════════════════════════
-
-import { OptimizeConfig } from './optimizer/types.js';
 
 /**
  * Result returned by a comparator function.
@@ -20,6 +39,8 @@ import { OptimizeConfig } from './optimizer/types.js';
 export interface ComparatorResult {
   passed: boolean;
   similarity?: number; // 0.0-1.0, used for matching. If undefined, derived from passed (1.0 or 0.0)
+  rationale?: string; // Optional explanation (e.g., from LLM comparators)
+  cost?: number; // Optional cost of this comparison (e.g., for LLM comparators)
 }
 
 /**
@@ -32,12 +53,13 @@ export interface ComparatorContext {
 
 /**
  * A comparator function that compares expected vs actual.
+ * Can be synchronous or asynchronous (for LLM-based comparators).
  */
 export type Comparator<T = unknown> = (
   expected: T,
   actual: T,
   context?: ComparatorContext
-) => ComparatorResult;
+) => ComparatorResult | Promise<ComparatorResult>;
 
 /**
  * A map of field names to comparators.
@@ -120,6 +142,8 @@ export interface FieldResult {
   passed: boolean;
   expected: unknown;
   actual: unknown;
+  rationale?: string; // Optional explanation from comparator
+  cost?: number; // Optional cost from comparator
 }
 
 /**
@@ -130,7 +154,8 @@ export interface TestCaseResult<TInput = unknown, TOutput = unknown> {
   expected: TOutput;
   actual?: TOutput;
   additionalContext?: unknown;
-  cost?: number;
+  cost?: number; // Executor cost
+  comparatorCost?: number; // Total cost from all comparators in this test
   passed: boolean;
   fields: Record<string, FieldResult>;
   error?: string;
@@ -151,5 +176,6 @@ export interface EvalResult<TInput = unknown, TOutput = unknown> {
   correctFields: number;
   totalFields: number;
   accuracy: number;
-  cost: number;
+  cost: number; // Total executor cost
+  comparatorCost: number; // Total comparator cost
 }

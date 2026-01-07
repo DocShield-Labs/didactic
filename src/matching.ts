@@ -18,11 +18,11 @@ function isObject(value: unknown): value is Record<string, unknown> {
  * For objects: average similarity across all fields using comparator results.
  * For primitives: uses exact comparison's similarity score.
  */
-function getSimilarity(
+async function getSimilarity(
   expected: unknown,
   actual: unknown,
   comparators: ComparatorMap
-): number {
+): Promise<number> {
   // Arrays: recursively match and calculate average similarity
   if (Array.isArray(expected) && Array.isArray(actual)) {
     if (expected.length === 0 && actual.length === 0) {
@@ -32,10 +32,14 @@ function getSimilarity(
       return 0.0;
     }
 
-    const result = matchArrays(expected, actual, comparators);
+    const result = await matchArrays(expected, actual, comparators);
     let total = 0;
     for (const [expIdx, actIdx] of result.assignments) {
-      total += getSimilarity(expected[expIdx], actual[actIdx], comparators);
+      total += await getSimilarity(
+        expected[expIdx],
+        actual[actIdx],
+        comparators
+      );
     }
 
     // Penalize for unmatched items
@@ -59,7 +63,7 @@ function getSimilarity(
   let total = 0;
   for (const key of fields) {
     const comparator = comparators[key];
-    const result = comparator(expected[key], actual[key], {
+    const result = await comparator(expected[key], actual[key], {
       expectedParent: expected,
       actualParent: actual,
     });
@@ -77,11 +81,11 @@ function getSimilarity(
  * @param comparators - Map of field names to comparator functions
  * @returns Matching result with assignments and unmatched indices
  */
-export function matchArrays(
+export async function matchArrays(
   expected: unknown[],
   actual: unknown[],
   comparators: ComparatorMap = {}
-): MatchResult {
+): Promise<MatchResult> {
   // Handle empty arrays
   if (expected.length === 0) {
     return {
@@ -100,8 +104,14 @@ export function matchArrays(
   }
 
   // Build cost matrix: cost = 1 - similarity (lower cost = better match)
-  const matrix = expected.map((exp) =>
-    actual.map((act) => 1 - getSimilarity(exp, act, comparators))
+  const matrix = await Promise.all(
+    expected.map(async (exp) =>
+      Promise.all(
+        actual.map(
+          async (act) => 1 - (await getSimilarity(exp, act, comparators))
+        )
+      )
+    )
   );
 
   // Run Hungarian algorithm
