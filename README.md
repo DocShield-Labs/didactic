@@ -5,7 +5,9 @@
 [![npm version](https://img.shields.io/npm/v/@docshield/didactic.svg)](https://www.npmjs.com/package/@docshield/didactic)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Eval and optimization framework for LLM workflows.
+**Eval** your LLM workflows by comparing actual outputs against expected results with smart comparators that handle real-world variations. **Optimize** prompts automatically through iterative self-improvement—the system analyzes its own mistakes and rewrites prompts to boost accuracy.
+
+Use it to test extraction and classification based AI workflows, monitor regression, and improve performance
 
 ## Installation
 
@@ -43,6 +45,35 @@ console.log(
   `${result.passed}/${result.total} passed (${result.accuracy * 100}% field accuracy)`
 );
 ```
+
+## Examples
+
+Two complete examples are included:
+
+### Invoice Parser
+
+Real-world invoice extraction using Anthropic's Claude with structured outputs. Tests field accuracy across vendor names, line items, and payment terms.
+
+```bash
+# Set your API key
+export ANTHROPIC_API_KEY=your_key_here
+
+# Run the example
+npx tsx example/eval/invoice-parser/invoice-parser.ts
+```
+
+Shows how to use `numeric`, `name`, and `exact` comparators for financial data extraction.
+
+### Business Email Extractor
+
+Demonstrates the `llmCompare` comparator for semantic matching where exact equality fails. Handles company name variations (Corp vs Corporation), payment term phrasings (Net 30 vs "Payment due within 30 days"), and paraphrased service descriptions.
+
+```bash
+# Run with your API key
+npx tsx example/eval/business-email-extractor.ts/business-email-extractor.ts
+```
+
+Shows field-level cost tracking and rationales for each comparison decision.
 
 ---
 
@@ -382,18 +413,19 @@ const result = await didactic.eval({
 
 ### Built-in Comparators
 
-| Comparator         | Signature                | Description                                                                                                                            |
-| ------------------ | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `exact`            | `(expected, actual)`     | Deep equality with cycle detection. Default when no comparator specified.                                                              |
-| `within`           | `({ tolerance, mode? })` | Numeric tolerance. `mode: 'percentage'` (default) or `'absolute'`.                                                                     |
-| `oneOf`            | `(allowedValues)`        | Enum validation. Passes if actual equals expected AND both are in the allowed set.                                                     |
-| `contains`         | `(substring)`            | String contains check. Passes if actual includes the substring.                                                                        |
-| `presence`         | `(expected, actual)`     | Existence check. Passes if expected is absent, or if actual has any value when expected does.                                          |
-| `numeric`          | `(expected, actual)`     | Numeric comparison after stripping currency symbols, commas, accounting notation.                                                      |
-| `numeric.nullable` | `(expected, actual)`     | Same as `numeric`, but treats null/undefined/empty as 0.                                                                               |
-| `date`             | `(expected, actual)`     | Date comparison after normalizing formats (ISO, US MM/DD, EU DD/MM, written).                                                          |
-| `name`             | `(expected, actual)`     | Name comparison with case normalization, suffix removal (Inc, LLC), fuzzy matching.                                                    |
-| `custom`           | `({ compare })`          | User-defined logic. `compare(expected, actual, context?) => boolean`. Context provides access to parent objects for cross-field logic. |
+| Comparator         | Usage                                              | Description                                                                                                                            |
+| ------------------ | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `exact`            | `exact`                                            | Deep equality with cycle detection. Default when no comparator specified.                                                              |
+| `within`           | `within({ tolerance, mode? })`                     | Numeric tolerance. `mode: 'percentage'` (default) or `'absolute'`.                                                                     |
+| `oneOf`            | `oneOf(allowedValues)`                             | Enum validation. Passes if actual equals expected AND both are in the allowed set.                                                     |
+| `contains`         | `contains(substring)`                              | String contains check. Passes if actual includes the substring.                                                                        |
+| `presence`         | `presence`                                         | Existence check. Passes if expected is absent, or if actual has any value when expected does.                                          |
+| `numeric`          | `numeric`                                          | Numeric comparison after stripping currency symbols, commas, accounting notation.                                                      |
+| `numeric.nullable` | `numeric.nullable`                                 | Same as `numeric`, but treats null/undefined/empty as 0.                                                                               |
+| `date`             | `date`                                             | Date comparison after normalizing formats (ISO, US MM/DD, EU DD/MM, written).                                                          |
+| `name`             | `name`                                             | Name comparison with case normalization, suffix removal (Inc, LLC), fuzzy matching.                                                    |
+| `llmCompare`       | `llmCompare({ apiKey, systemPrompt?, provider? })` | LLM-based semantic comparison. Uses structured outputs to compare values for semantic equivalence. Returns rationale and tracks cost.  |
+| `custom`           | `custom({ compare })`                              | User-defined logic. `compare(expected, actual, context?) => boolean`. Context provides access to parent objects for cross-field logic. |
 
 ### Examples
 
@@ -407,6 +439,7 @@ import {
   numeric,
   date,
   name,
+  llmCompare,
   custom,
 } from '@docshield/didactic';
 
@@ -420,6 +453,14 @@ const comparators = {
   effectiveDate: date,
   amount: numeric,
   optionalField: presence,
+
+  // LLM-based comparison for flexible semantic matching
+  companyName: llmCompare({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    systemPrompt:
+      'Compare company names considering abbreviations and legal suffixes.',
+  }),
+
   customField: custom({
     compare: (expected, actual, context) => {
       // Access sibling fields via context.actualParent

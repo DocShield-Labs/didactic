@@ -1,12 +1,18 @@
 /**
- * Business Email Information Extractor
+ * Business Email Extractor - llmCompare Demo
  * 
- * Extracts structured business information from email text.
- * Uses llmCompare for fields where exact matching doesn't work
- * (company names, payment terms, service descriptions).
+ * Shows how to use the llmCompare comparator for semantic matching when extraction
+ * results vary in phrasing but mean the same thing.
  * 
- * Run with:
- * ANTHROPIC_API_KEY=your_key npx tsx example/eval/business-email-extractor/business-email-extractor.ts
+ * Demonstrates:
+ * - llmCompare with custom systemPrompt for domain-specific comparison
+ * - Handling company name variations (Corp vs Corporation, added LLC suffixes)
+ * - Payment term phrasings (Net 30 vs "Payment due within 30 days")
+ * - Service description paraphrasing
+ * - Cost tracking and rationales for each field comparison
+ * - Mixing llmCompare with exact comparators (hybrid approach)
+ * 
+ * Run with: ANTHROPIC_API_KEY=your_key npx tsx example/eval/business-email-extractor.ts/business-email-extractor.ts
  */
 
 import { evaluate, fn, llmCompare, exact } from '../../../src/index.js';

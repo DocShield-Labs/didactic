@@ -1,11 +1,14 @@
 /**
  * Invoice Parser Evaluation Example
  * 
- * This example demonstrates how to use Didactic to evaluate an AI system
- * that extracts structured data from raw invoice OCR text.
+ * Tests an invoice extraction workflow using Claude with structured outputs.
+ * Demonstrates:
+ * - Real LLM calls with cost tracking
+ * - Field-level comparison using exact, numeric, and name comparators
+ * - Unordered list matching for line items
+ * - Handling OCR variations in vendor names and payment terms
  * 
- * Use case: Accounts Payable automation - parsing PDF invoices to extract
- * vendor info, line items, and payment details.
+ * Run with: ANTHROPIC_API_KEY=your_key npx tsx example/eval/invoice-parser/invoice-parser.ts
  */
 
 // Load environment variables from .env file
