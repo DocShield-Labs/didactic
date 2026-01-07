@@ -44,9 +44,6 @@ export async function optimize<TInput, TOutput>(
   if (!config.apiKey) {
     throw new Error('apiKey is required');
   }
-  if (!config.systemPrompt) {
-    throw new Error('systemPrompt is required');
-  }
   if (config.targetSuccessRate < 0 || config.targetSuccessRate > 1) {
     throw new Error('targetSuccessRate must be between 0 and 1');
   }
