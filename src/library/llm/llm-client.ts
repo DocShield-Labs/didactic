@@ -128,12 +128,12 @@ export async function callStructuredLLM<T>(
       // Add thinking if requested
       const streamOptions = useThinking
         ? {
-          ...baseOptions,
-          thinking: {
-            type: 'enabled' as const,
-            budget_tokens: ANTHROPIC_THINKING_BUDGET_TOKENS,
-          },
-        }
+            ...baseOptions,
+            thinking: {
+              type: 'enabled' as const,
+              budget_tokens: ANTHROPIC_THINKING_BUDGET_TOKENS,
+            },
+          }
         : baseOptions;
 
       const stream = client.beta.messages.stream(streamOptions);
@@ -192,8 +192,6 @@ export async function callStructuredLLM<T>(
     throw new Error(`Unsupported provider: ${provider}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `Structured LLM call failed (${spec.model}): ${message}`
-    );
+    throw new Error(`Structured LLM call failed (${spec.model}): ${message}`);
   }
 }

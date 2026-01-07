@@ -1,4 +1,4 @@
-import type { LLMProviders } from '../types.js';
+import type { LLMProviders } from '../../types.js';
 
 /**
  * Chat message for LLM calls (internal).

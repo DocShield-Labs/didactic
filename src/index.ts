@@ -5,10 +5,13 @@ import type {
   OptimizeConfig,
   OptimizeResult,
 } from './types.js';
-import type { EndpointConfig, FnConfig } from './executors.js';
-import { evaluate } from './eval.js';
+import type { EndpointConfig, FnConfig } from './eval/executors.js';
+import { evaluate } from './eval/eval.js';
 import { optimize as runOptimize } from './optimizer/optimizer.js';
-import { endpoint as createEndpoint, fn as createFn } from './executors.js';
+import {
+  endpoint as createEndpoint,
+  fn as createFn,
+} from './eval/executors.js';
 
 // Re-export types
 export type {
@@ -25,13 +28,15 @@ export type {
   EvalResult,
   OptimizeConfig,
   OptimizeResult,
+  // LLM configuration
+  LLMConfig,
 } from './types.js';
 
 // Re-export LLM providers enum
 export { LLMProviders } from './types.js';
 
 // Re-export executor config types
-export type { EndpointConfig, FnConfig } from './executors.js';
+export type { EndpointConfig, FnConfig } from './eval/executors.js';
 
 // Re-export comparators
 export {
@@ -45,16 +50,17 @@ export {
   date,
   name,
   llmCompare,
-} from './comparators.js';
+  unordered,
+} from './eval/comparators/comparators.js';
 
 // Re-export comparator config types
-export type { LLMCompareConfig } from './comparators.js';
+export type { LLMCompareConfig } from './eval/comparators/comparators.js';
 
 // Re-export executors
-export { endpoint, fn, mock } from './executors.js';
+export { endpoint, fn, mock } from './eval/executors.js';
 
 // Re-export eval
-export { evaluate } from './eval.js';
+export { evaluate } from './eval/eval.js';
 
 // Re-export optimizer
 export { optimize } from './optimizer/optimizer.js';

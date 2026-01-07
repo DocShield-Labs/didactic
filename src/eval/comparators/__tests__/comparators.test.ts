@@ -9,7 +9,7 @@ import {
   numeric,
   date,
   name,
-} from '../src/comparators.js';
+} from '../comparators.js';
 
 describe('within', () => {
   it('percentage mode passes/fails based on tolerance', async () => {

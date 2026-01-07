@@ -27,7 +27,9 @@ describe('prompts', () => {
 
   describe('DEFAULT_PATCH_SYSTEM_PROMPT', () => {
     it('exports a default patch system prompt', () => {
-      expect(DEFAULT_PATCH_SYSTEM_PROMPT).toContain('optimizing a system prompt');
+      expect(DEFAULT_PATCH_SYSTEM_PROMPT).toContain(
+        'optimizing a system prompt'
+      );
       expect(DEFAULT_PATCH_SYSTEM_PROMPT).toContain('Do NOT overfit');
     });
   });
@@ -138,4 +140,3 @@ describe('prompts', () => {
     });
   });
 });
-

@@ -44,11 +44,21 @@ export interface ComparatorResult {
 }
 
 /**
+ * LLM configuration for use by LLM-based comparators.
+ * Can be specified at the top level of eval config to avoid repeating apiKey.
+ */
+export interface LLMConfig {
+  apiKey: string;
+  provider?: LLMProviders;
+}
+
+/**
  * Context passed to comparators for cross-field access.
  */
 export interface ComparatorContext {
   expectedParent: unknown;
   actualParent: unknown;
+  llmConfig?: LLMConfig;
 }
 
 /**
@@ -62,10 +72,30 @@ export type Comparator<T = unknown> = (
 ) => ComparatorResult | Promise<ComparatorResult>;
 
 /**
- * A map of field names to comparators.
+ * Marker interface for comparators with ordering metadata.
+ * Created by the unordered() wrapper function.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ComparatorMap = Record<string, Comparator<any>>;
+export interface ComparatorWithOrdering<T = unknown> {
+  (
+    expected: T,
+    actual: T,
+    context?: ComparatorContext
+  ): ComparatorResult | Promise<ComparatorResult>;
+  _unordered: true;
+  _nestedComparators?: NestedComparatorConfig;
+}
+
+/**
+ * Recursive comparator configuration that matches data shape.
+ * Can be a comparator function, a comparator with ordering, or a nested object.
+ */
+export type NestedComparatorConfig = {
+  [key: string]: // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    | Comparator<any>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    | ComparatorWithOrdering<any>
+    | NestedComparatorConfig;
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // EXECUTORS
@@ -108,26 +138,32 @@ interface BaseEvalConfig<TInput = unknown, TOutput = unknown> {
   executor: Executor<TInput, TOutput>;
   testCases: TestCase<TInput, TOutput>[];
   perTestThreshold?: number; // Default: 1.0 (all fields must pass)
-  unorderedList?: boolean; // Default: false (ordered array comparison)
   optimize?: OptimizeConfig;
   rateLimitBatch?: number; // Run N test cases at a time (default: all in parallel)
   rateLimitPause?: number; // Wait N seconds between batches
+  llmConfig?: LLMConfig; // Default LLM config for LLM-based comparators (e.g., llmCompare)
 }
 
 /**
- * Flexible comparators configuration.
- * Accepts either a single comparator function or a field mapping object.
- * Single comparator will apply the comparator to the object, primitive, list of objects, or list of primitives. If `unorderedList` is true, the comparator will be applied to the list of items in the array by similarity rather than index position.
+ * Top-level comparators configuration.
+ * Can be:
+ * - A single comparator function for root-level primitives/arrays (e.g., `exact`, `numeric`)
+ * - A ComparatorWithOrdering for unordered root-level arrays (e.g., `unordered(exact)`)
+ * - A nested object structure matching your data shape
  */
-export type ComparatorsConfig = ComparatorMap | Comparator<unknown>;
+export type ComparatorsConfig =
+  | NestedComparatorConfig
+  | ComparatorWithOrdering<unknown>
+  | Comparator<unknown>;
 
 /**
  * Main eval configuration.
- * Either `comparators` (field mapping or single function) OR `comparatorOverride` (whole-object) must be provided.
+ * - `comparators` (optional): field mapping or single comparator. Defaults to `exact` for entire shape.
+ * - `comparatorOverride`: whole-object comparison (bypasses field-level comparison).
  */
 export type EvalConfig<TInput = unknown, TOutput = unknown> =
   | (BaseEvalConfig<TInput, TOutput> & {
-      comparators: ComparatorsConfig;
+      comparators?: ComparatorsConfig;
       comparatorOverride?: undefined;
     })
   | (BaseEvalConfig<TInput, TOutput> & {

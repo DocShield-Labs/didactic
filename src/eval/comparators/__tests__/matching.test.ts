@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { matchArrays } from '../src/matching.js';
-import { exact, within, date } from '../src/comparators.js';
+import { matchArrays } from '../matching.js';
+import { exact, within, date } from '../comparators.js';
 
 const testCase1Actual = [
   {

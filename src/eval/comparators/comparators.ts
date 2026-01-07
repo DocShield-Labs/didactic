@@ -2,11 +2,13 @@ import {
   Comparator,
   ComparatorContext,
   ComparatorResult,
+  ComparatorWithOrdering,
   LLMProviders,
-} from './types.js';
-import { NAME_SUFFIXES } from './constants.js';
-import { callStructuredLLM } from './llm/llm-client.js';
-import type { JSONSchema } from './llm/types.js';
+  NestedComparatorConfig,
+} from '../../types.js';
+import { NAME_SUFFIXES } from '../../library/constants.js';
+import { callStructuredLLM } from '../../library/llm/llm-client.js';
+import type { JSONSchema } from '../../library/llm/types.js';
 import * as chrono from 'chrono-node';
 import { differenceInDays } from 'date-fns';
 import Levenshtein from 'levenshtein';
@@ -200,7 +202,8 @@ export function within(config: {
 /** Configuration for LLM-based comparison. */
 export interface LLMCompareConfig {
   provider?: LLMProviders;
-  apiKey: string;
+  /** API key for LLM provider. If not provided, uses llmConfig.apiKey from eval config. */
+  apiKey?: string;
   systemPrompt?: string;
 }
 
@@ -246,18 +249,31 @@ ${JSON.stringify(actual, null, 2)}`;
  * Default provider: anthropic_claude_haiku (fastest, cheapest).
  */
 export function llmCompare(config: LLMCompareConfig): Comparator {
-  const provider = config.provider ?? LLMProviders.anthropic_claude_haiku;
   const systemPrompt = config.systemPrompt ?? DEFAULT_LLM_COMPARE_SYSTEM_PROMPT;
 
-  return async (expected, actual) => {
+  return async (expected, actual, context) => {
     try {
+      // Resolve API key: use config.apiKey if provided, otherwise fall back to context.llmConfig
+      const apiKey = config.apiKey ?? context?.llmConfig?.apiKey;
+      if (!apiKey) {
+        throw new Error(
+          'llmCompare requires an apiKey. Either pass it directly to llmCompare() or set llmConfig.apiKey in eval config.'
+        );
+      }
+
+      // Resolve provider: use config.provider if provided, otherwise fall back to context.llmConfig, then default
+      const provider =
+        config.provider ??
+        context?.llmConfig?.provider ??
+        LLMProviders.anthropic_claude_haiku;
+
       // Build user prompt with expected/actual values (always included)
       const userPrompt = buildLLMCompareUserPrompt(expected, actual);
 
       // Call LLM with structured output
       const result = await callStructuredLLM<LLMCompareResponse>({
         provider,
-        apiKey: config.apiKey,
+        apiKey,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
@@ -282,6 +298,50 @@ export function llmCompare(config: LLMCompareConfig): Comparator {
       };
     }
   };
+}
+
+/**
+ * Marks a comparator or comparator config as unordered.
+ * When applied to an array field, items will be matched by similarity
+ * rather than index position (using Hungarian algorithm).
+ *
+ * @example
+ * // Unordered array of objects
+ * lineItems: unordered({
+ *   description: name,
+ *   price: within({ tolerance: 5 })
+ * })
+ *
+ * @example
+ * // Unordered array of primitives
+ * tags: unordered(exact)
+ *
+ * @example
+ * // When entire output is an array
+ * comparators: unordered({
+ *   carrier: exact,
+ *   premium: within({ tolerance: 0.05 })
+ * })
+ */
+export function unordered<T>(
+  comparator: Comparator<T> | NestedComparatorConfig
+): ComparatorWithOrdering<T> {
+  // If passed a function, use it; if passed an object, create a placeholder that throws
+  const baseFunction =
+    typeof comparator === 'function'
+      ? comparator
+      : () => {
+          throw new Error(
+            'unordered() base function should not be called when nested comparators exist. ' +
+              'This is likely a bug in the evaluation logic.'
+          );
+        };
+
+  // Attach ordering metadata
+  return Object.assign(baseFunction, {
+    _unordered: true as const,
+    _nestedComparators: typeof comparator === 'object' ? comparator : undefined,
+  }) as ComparatorWithOrdering<T>;
 }
 
 // Private helpers

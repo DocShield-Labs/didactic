@@ -1,5 +1,5 @@
-import { LLMProviders } from './types.js';
-import type { ProviderSpec } from './optimizer/types.js';
+import { LLMProviders } from '../types.js';
+import type { ProviderSpec } from '../optimizer/types.js';
 
 export const PROVIDER_SPECS: Record<LLMProviders, ProviderSpec> = {
   [LLMProviders.anthropic_claude_opus]: {

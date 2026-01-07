@@ -1,5 +1,5 @@
-import type { Executor, ExecutorResult } from './types.js';
-import { DEFAULT_ENDPOINT_TIMEOUT_MS } from './constants.js';
+import type { Executor, ExecutorResult } from '../types.js';
+import { DEFAULT_ENDPOINT_TIMEOUT_MS } from '../library/constants.js';
 
 /**
  * Configuration for endpoint executor.

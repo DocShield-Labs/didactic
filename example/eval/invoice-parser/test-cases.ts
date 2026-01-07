@@ -62,9 +62,24 @@ Payment Terms: Net 30
       dueDate: '2024-02-15',
       customerName: 'Contoso Corporation',
       lineItems: [
-        { description: 'Enterprise License', quantity: 1, unitPrice: 5000, total: 5000 },
-        { description: 'Premium Support (Annual)', quantity: 1, unitPrice: 1200, total: 1200 },
-        { description: 'API Overages', quantity: 2500, unitPrice: 0.02, total: 50 },
+        {
+          description: 'Enterprise License',
+          quantity: 1,
+          unitPrice: 5000,
+          total: 5000,
+        },
+        {
+          description: 'Premium Support (Annual)',
+          quantity: 1,
+          unitPrice: 1200,
+          total: 1200,
+        },
+        {
+          description: 'API Overages',
+          quantity: 2500,
+          unitPrice: 0.02,
+          total: 50,
+        },
       ],
       subtotal: 6250,
       tax: 531.25,
@@ -103,10 +118,15 @@ Terms: Net 30
       dueDate: '2024-02-20',
       customerName: 'TechStart Inc',
       lineItems: [
-        { description: 'Cloud Hosting', quantity: 1, unitPrice: 299.99, total: 299.99 },
+        {
+          description: 'Cloud Hosting',
+          quantity: 1,
+          unitPrice: 299.99,
+          total: 299.99,
+        },
       ],
       subtotal: 299.99,
-      tax: 25.50,
+      tax: 25.5,
       total: 325.49,
       paymentTerms: 'Net 30',
     },
@@ -142,9 +162,24 @@ Payment Terms: Net 45
       dueDate: '2024-02-25',
       customerName: 'Startup Labs',
       lineItems: [
-        { description: 'Ergonomic Chairs', quantity: 5, unitPrice: 450, total: 2250 },
-        { description: 'Standing Desks', quantity: 3, unitPrice: 800, total: 2400 },
-        { description: 'Monitor Stands', quantity: 8, unitPrice: 75, total: 600 },
+        {
+          description: 'Ergonomic Chairs',
+          quantity: 5,
+          unitPrice: 450,
+          total: 2250,
+        },
+        {
+          description: 'Standing Desks',
+          quantity: 3,
+          unitPrice: 800,
+          total: 2400,
+        },
+        {
+          description: 'Monitor Stands',
+          quantity: 8,
+          unitPrice: 75,
+          total: 600,
+        },
       ],
       subtotal: 5250,
       tax: 446.25,
@@ -153,4 +188,3 @@ Payment Terms: Net 45
     },
   },
 ];
-
