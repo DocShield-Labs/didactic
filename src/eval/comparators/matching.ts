@@ -1,5 +1,5 @@
 import munkres from 'munkres-js';
-import type { NestedComparatorConfig, Comparator } from '../types.js';
+import type { NestedComparatorConfig, Comparator } from '../../types.js';
 import { exact } from './comparators.js'; // Used for primitive comparison
 
 export interface MatchResult {

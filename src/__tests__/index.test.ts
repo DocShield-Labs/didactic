@@ -26,15 +26,15 @@ import {
 import type {
   Comparator,
   ComparatorContext,
-  ComparatorResult,
+  ComparatorResult as _ComparatorResult,
   Executor,
-  ExecutorResult,
+  ExecutorResult as _ExecutorResult,
   TestCase,
-  EvalConfig,
-  EvalResult,
-  OptimizeResult,
-  EndpointConfig,
-  FnConfig,
+  EvalConfig as _EvalConfig,
+  EvalResult as _EvalResult,
+  OptimizeResult as _OptimizeResult,
+  EndpointConfig as _EndpointConfig,
+  FnConfig as _FnConfig,
 } from '../index.js';
 
 describe('index exports', () => {

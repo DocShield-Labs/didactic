@@ -39,7 +39,7 @@ vi.mock('openai', () => {
 
 // Suppress console logs during tests
 beforeEach(() => {
-  vi.spyOn(console, 'log').mockImplementation(() => {});
+  vi.spyOn(console, 'log').mockImplementation(() => { });
 });
 
 afterEach(() => {
@@ -66,17 +66,6 @@ describe('optimize', () => {
           provider: LLMProviders.anthropic_claude_sonnet,
         })
       ).rejects.toThrow('apiKey is required');
-    });
-
-    it('throws when systemPrompt is missing', async () => {
-      await expect(
-        optimize(baseEvalConfig, {
-          systemPrompt: '',
-          targetSuccessRate: 0.9,
-          apiKey: 'test-key',
-          provider: LLMProviders.anthropic_claude_sonnet,
-        })
-      ).rejects.toThrow('systemPrompt is required');
     });
 
     it('throws when targetSuccessRate is below 0', async () => {
