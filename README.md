@@ -20,7 +20,14 @@ Requires Node.js >= 18.0.0
 ## Quick Start
 
 ```typescript
-import { didactic, within, oneOf, exact, unordered, numeric } from '@docshield/didactic';
+import {
+  didactic,
+  within,
+  oneOf,
+  exact,
+  unordered,
+  numeric,
+} from '@docshield/didactic';
 
 const result = await didactic.eval({
   executor: didactic.endpoint('https://api.example.com/extract'),
@@ -57,7 +64,7 @@ console.log(
 
 ## Example
 
-### Invoice Parser
+### Eval - Invoice Parser
 
 Real-world invoice extraction using Anthropic's Claude with structured outputs. Tests field accuracy across vendor names, line items, and payment terms.
 
@@ -66,10 +73,24 @@ Real-world invoice extraction using Anthropic's Claude with structured outputs. 
 export ANTHROPIC_API_KEY=your_key_here
 
 # Run the example
-npx tsx example/eval/invoice-parser/invoice-parser.ts
+npm run example:eval:invoice-parser
 ```
 
 Shows how to use `numeric`, `name`, `exact`, `unordered()`, and `llmCompare` comparators for financial data extraction with nested comparator structures.
+
+### Optimizer - Expense Categorizer
+
+Iteratively feed eval failures back into an optimization loop to self-improve prompt and performance. Runs evals until it reaches targeted performance or runs out of budget.
+
+```bash
+# Set your API key
+export ANTHROPIC_API_KEY=your_key_here
+
+# Run the example
+npm run example:optimizer:expense-categorizer
+```
+
+Shows how to use Didactic to self-heal failures and improve prompt to better perform across test set data.
 
 ---
 
@@ -107,18 +128,18 @@ const result = await didactic.eval(config);
 
 #### EvalConfig
 
-| Property             | Type                                         | Kind            | Required   | Default  | Description                                                                                                                                                                                                                                                                         |
-| -------------------- | -------------------------------------------- | --------------- | ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `executor`           | `Executor<TInput, TOutput>`                  | Object          | **Yes**    | —        | Function that executes your LLM workflow. Receives input and optional system prompt, returns structured output.                                                                                                                                                                     |
-| `testCases`          | `TestCase<TInput, TOutput>[]`                | Array           | **Yes**    | —        | Array of `{ input, expected }` pairs. Each test case runs through the executor and compares output to expected.                                                                                                                                                                     |
-| `comparators`        | `ComparatorsConfig`                          | Object/Function | No         | `exact`  | Nested comparator structure matching your data shape. Can be a single comparator function (e.g., `exact`), or a nested object with per-field comparators. Use `unordered()` wrapper for arrays that should match by similarity rather than index.                                   |
-| `comparatorOverride` | `Comparator<TOutput>`                        | Function        | No         | —        | Custom whole-object comparison function. Use when you need complete control over comparison logic and want to bypass field-level matching.                                                                                                                                          |
-| `llmConfig`          | `LLMConfig`                                  | Object          | No         | —        | Default LLM configuration for LLM-based comparators (e.g., `llmCompare`). Provides `apiKey` and optional `provider` so you don't repeat them in each comparator call.                                                                                                               |
-| `systemPrompt`       | `string`                                     | Primitive       | No         | —        | System prompt passed to the executor. Required if using optimization.                                                                                                                                                                                                               |
-| `perTestThreshold`   | `number`                                     | Primitive       | No         | `1.0`    | Minimum field pass rate for a test case to pass (0.0–1.0). At default 1.0, all fields must pass. Set to 0.8 to pass if 80% of fields match.                                                                                                                                         |
-| `rateLimitBatch`     | `number`                                     | Primitive       | No         | —        | Number of test cases to run concurrently. Use with `rateLimitPause` for rate-limited APIs.                                                                                                                                                                                          |
-| `rateLimitPause`     | `number`                                     | Primitive       | No         | —        | Seconds to wait between batches. Pairs with `rateLimitBatch`.                                                                                                                                                                                                                       |
-| `optimize`           | `OptimizeConfig`                             | Object          | No         | —        | Inline optimization config. When provided, triggers optimization mode instead of single eval.                                                                                                                                                                                       |
+| Property             | Type                          | Kind            | Required | Default | Description                                                                                                                                                                                                                                       |
+| -------------------- | ----------------------------- | --------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `executor`           | `Executor<TInput, TOutput>`   | Object          | **Yes**  | —       | Function that executes your LLM workflow. Receives input and optional system prompt, returns structured output.                                                                                                                                   |
+| `testCases`          | `TestCase<TInput, TOutput>[]` | Array           | **Yes**  | —       | Array of `{ input, expected }` pairs. Each test case runs through the executor and compares output to expected.                                                                                                                                   |
+| `comparators`        | `ComparatorsConfig`           | Object/Function | No       | `exact` | Nested comparator structure matching your data shape. Can be a single comparator function (e.g., `exact`), or a nested object with per-field comparators. Use `unordered()` wrapper for arrays that should match by similarity rather than index. |
+| `comparatorOverride` | `Comparator<TOutput>`         | Function        | No       | —       | Custom whole-object comparison function. Use when you need complete control over comparison logic and want to bypass field-level matching.                                                                                                        |
+| `llmConfig`          | `LLMConfig`                   | Object          | No       | —       | Default LLM configuration for LLM-based comparators (e.g., `llmCompare`). Provides `apiKey` and optional `provider` so you don't repeat them in each comparator call.                                                                             |
+| `systemPrompt`       | `string`                      | Primitive       | No       | —       | System prompt passed to the executor. Required if using optimization.                                                                                                                                                                             |
+| `perTestThreshold`   | `number`                      | Primitive       | No       | `1.0`   | Minimum field pass rate for a test case to pass (0.0–1.0). At default 1.0, all fields must pass. Set to 0.8 to pass if 80% of fields match.                                                                                                       |
+| `rateLimitBatch`     | `number`                      | Primitive       | No       | —       | Number of test cases to run concurrently. Use with `rateLimitPause` for rate-limited APIs.                                                                                                                                                        |
+| `rateLimitPause`     | `number`                      | Primitive       | No       | —       | Seconds to wait between batches. Pairs with `rateLimitBatch`.                                                                                                                                                                                     |
+| `optimize`           | `OptimizeConfig`              | Object          | No       | —       | Inline optimization config. When provided, triggers optimization mode instead of single eval.                                                                                                                                                     |
 
 ---
 
@@ -429,20 +450,20 @@ const result = await didactic.eval({
 
 ### Built-in Comparators
 
-| Comparator         | Usage                                               | Description                                                                                                                                           |
-| ------------------ | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `exact`            | `exact`                                             | Deep equality with cycle detection. Default when no comparator specified.                                                                             |
-| `within`           | `within({ tolerance, mode? })`                      | Numeric tolerance. `mode: 'percentage'` (default) or `'absolute'`.                                                                                    |
-| `oneOf`            | `oneOf(allowedValues)`                              | Enum validation. Passes if actual equals expected AND both are in the allowed set.                                                                    |
-| `contains`         | `contains(substring)`                               | String contains check. Passes if actual includes the substring.                                                                                       |
-| `presence`         | `presence`                                          | Existence check. Passes if expected is absent, or if actual has any value when expected does.                                                         |
-| `numeric`          | `numeric`                                           | Numeric comparison after stripping currency symbols, commas, accounting notation.                                                                     |
-| `numeric.nullable` | `numeric.nullable`                                  | Same as `numeric`, but treats null/undefined/empty as 0.                                                                                              |
-| `date`             | `date`                                              | Date comparison after normalizing formats (ISO, US MM/DD, EU DD/MM, written).                                                                         |
-| `name`             | `name`                                              | Name comparison with case normalization, suffix removal (Inc, LLC), fuzzy matching.                                                                   |
-| `unordered`        | `unordered(comparator)` or `unordered({ fields })` | Wrapper for arrays that should match by similarity (Hungarian algorithm) rather than index. Pass a comparator for primitives or nested config for objects. |
-| `llmCompare`       | `llmCompare({ systemPrompt?, apiKey?, provider? })` | LLM-based semantic comparison. Uses `llmConfig` from eval config if `apiKey` not provided. Returns rationale and tracks cost.                         |
-| `custom`           | `custom({ compare })`                               | User-defined logic. `compare(expected, actual, context?) => boolean`. Context provides access to parent objects for cross-field logic.                |
+| Comparator         | Usage                                               | Description                                                                                                                                                |
+| ------------------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `exact`            | `exact`                                             | Deep equality with cycle detection. Default when no comparator specified.                                                                                  |
+| `within`           | `within({ tolerance, mode? })`                      | Numeric tolerance. `mode: 'percentage'` (default) or `'absolute'`.                                                                                         |
+| `oneOf`            | `oneOf(allowedValues)`                              | Enum validation. Passes if actual equals expected AND both are in the allowed set.                                                                         |
+| `contains`         | `contains(substring)`                               | String contains check. Passes if actual includes the substring.                                                                                            |
+| `presence`         | `presence`                                          | Existence check. Passes if expected is absent, or if actual has any value when expected does.                                                              |
+| `numeric`          | `numeric`                                           | Numeric comparison after stripping currency symbols, commas, accounting notation.                                                                          |
+| `numeric.nullable` | `numeric.nullable`                                  | Same as `numeric`, but treats null/undefined/empty as 0.                                                                                                   |
+| `date`             | `date`                                              | Date comparison after normalizing formats (ISO, US MM/DD, EU DD/MM, written).                                                                              |
+| `name`             | `name`                                              | Name comparison with case normalization, suffix removal (Inc, LLC), fuzzy matching.                                                                        |
+| `unordered`        | `unordered(comparator)` or `unordered({ fields })`  | Wrapper for arrays that should match by similarity (Hungarian algorithm) rather than index. Pass a comparator for primitives or nested config for objects. |
+| `llmCompare`       | `llmCompare({ systemPrompt?, apiKey?, provider? })` | LLM-based semantic comparison. Uses `llmConfig` from eval config if `apiKey` not provided. Returns rationale and tracks cost.                              |
+| `custom`           | `custom({ compare })`                               | User-defined logic. `compare(expected, actual, context?) => boolean`. Context provides access to parent objects for cross-field logic.                     |
 
 ### Examples
 
