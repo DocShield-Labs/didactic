@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { evaluate } from '../src/eval.js';
-import { exact, within } from '../src/comparators.js';
-import { mock } from '../src/executors.js';
-import type { Executor } from '../src/types.js';
+import { evaluate } from '../eval.js';
+import { exact, within, unordered } from '../comparators/comparators.js';
+import { mock } from '../executors.js';
+import type { Executor } from '../../types.js';
 
 type Input = { id: number };
 type Output = { v: number };
@@ -189,7 +189,7 @@ describe('evaluate', () => {
     }
     type QuotesOutput = { quotes: Quote[] };
 
-    it('matches arrays regardless of order when unorderedList is true', async () => {
+    it('matches arrays regardless of order when using unordered()', async () => {
       const result = await evaluate<Input, QuotesOutput>({
         executor: async () => ({
           output: {
@@ -199,8 +199,12 @@ describe('evaluate', () => {
             ],
           },
         }),
-        comparators: { carrier: exact, premium: exact },
-        unorderedList: true,
+        comparators: {
+          quotes: unordered({
+            carrier: exact,
+            premium: exact,
+          }),
+        },
         testCases: [
           {
             input: { id: 1 },
@@ -217,7 +221,7 @@ describe('evaluate', () => {
       expect(result.testCases[0].passed).toBe(true);
     });
 
-    it('fails when arrays are reordered and unorderedList is false (default)', async () => {
+    it('fails when arrays are reordered without unordered() (ordered by default)', async () => {
       const result = await evaluate<Input, QuotesOutput>({
         executor: async () => ({
           output: {
@@ -227,7 +231,12 @@ describe('evaluate', () => {
             ],
           },
         }),
-        comparators: { carrier: exact, premium: exact },
+        comparators: {
+          quotes: {
+            carrier: exact,
+            premium: exact,
+          },
+        },
         testCases: [
           {
             input: { id: 1 },
@@ -250,8 +259,10 @@ describe('evaluate', () => {
           output: { quotes: [{ carrier: 'Acme', premium: 105 }] },
         }),
         comparators: {
-          carrier: exact,
-          premium: within({ tolerance: 0.1 }), // 10% tolerance
+          quotes: {
+            carrier: exact,
+            premium: within({ tolerance: 0.1 }), // 10% tolerance
+          },
         },
         testCases: [
           {
@@ -269,7 +280,12 @@ describe('evaluate', () => {
         executor: async () => ({
           output: { quotes: [{ carrier: 'Acme', premium: 100 }] },
         }),
-        comparators: { carrier: exact, premium: exact },
+        comparators: {
+          quotes: {
+            carrier: exact,
+            premium: exact,
+          },
+        },
         testCases: [
           {
             input: { id: 1 },
@@ -291,7 +307,12 @@ describe('evaluate', () => {
         executor: async () => ({
           output: { quotes: [{ carrier: 'Wrong', premium: 100 }] },
         }),
-        comparators: { carrier: exact, premium: exact },
+        comparators: {
+          quotes: {
+            carrier: exact,
+            premium: exact,
+          },
+        },
         testCases: [
           {
             input: { id: 1 },
@@ -451,10 +472,10 @@ describe('evaluate', () => {
   });
 
   describe('root-level primitives', () => {
-    it('auto-applies exact to root-level primitive arrays', async () => {
+    it('compares root-level primitive arrays with single comparator function', async () => {
       const result = await evaluate<Input, number[]>({
         executor: async () => ({ output: [1, 2, 3] }),
-        comparators: {},
+        comparators: exact, // Clean syntax for root-level arrays
         testCases: [{ input: { id: 1 }, expected: [1, 2, 3] }],
       });
 
@@ -465,7 +486,7 @@ describe('evaluate', () => {
     it('fails when root-level primitive arrays differ', async () => {
       const result = await evaluate<Input, number[]>({
         executor: async () => ({ output: [1, 2, 999] }),
-        comparators: {},
+        comparators: exact,
         testCases: [{ input: { id: 1 }, expected: [1, 2, 3] }],
       });
 
@@ -475,7 +496,7 @@ describe('evaluate', () => {
     it('fails when root-level primitive array has missing elements', async () => {
       const result = await evaluate<Input, number[]>({
         executor: async () => ({ output: [1, 2] }),
-        comparators: {},
+        comparators: exact,
         testCases: [{ input: { id: 1 }, expected: [1, 2, 3] }],
       });
 
@@ -504,10 +525,10 @@ describe('evaluate', () => {
       expect(result.testCases[0].passed).toBe(true);
     });
 
-    it('auto-applies exact to root-level single primitive', async () => {
+    it('compares root-level single primitive with single comparator function', async () => {
       const result = await evaluate<Input, number>({
         executor: async () => ({ output: 42 }),
-        comparators: {},
+        comparators: exact, // Clean syntax for root-level primitives
         testCases: [{ input: { id: 1 }, expected: 42 }],
       });
 
@@ -518,19 +539,29 @@ describe('evaluate', () => {
     it('fails when root-level single primitives differ', async () => {
       const result = await evaluate<Input, number>({
         executor: async () => ({ output: 999 }),
-        comparators: {},
+        comparators: exact,
         testCases: [{ input: { id: 1 }, expected: 42 }],
       });
 
       expect(result.testCases[0].passed).toBe(false);
     });
+
+    it('works with other comparator functions like within()', async () => {
+      const result = await evaluate<Input, number[]>({
+        executor: async () => ({ output: [105, 210] }),
+        comparators: within({ tolerance: 0.1 }) as typeof exact, // 10% tolerance
+        testCases: [{ input: { id: 1 }, expected: [100, 200] }],
+      });
+
+      expect(result.testCases[0].passed).toBe(true);
+    });
   });
 
-  describe('single comparator mode', () => {
-    it('accepts a single comparator function for objects', async () => {
+  describe('comparatorOverride mode', () => {
+    it('accepts a single comparator function for whole-object comparison', async () => {
       const result = await evaluate<Input, { a: number; b: number }>({
         executor: async () => ({ output: { a: 1, b: 2 } }),
-        comparators: exact, // Clean syntax instead of { '': exact }
+        comparatorOverride: exact,
         testCases: [{ input: { id: 1 }, expected: { a: 1, b: 2 } }],
       });
 
@@ -561,11 +592,23 @@ describe('evaluate', () => {
       expect(result.testCases[0].fields['']).toBeDefined();
     });
 
-    it('normalizes to field mapping internally for unordered lists', async () => {
+    it('works with primitives', async () => {
+      const result = await evaluate<Input, number>({
+        executor: async () => ({ output: 42 }),
+        comparatorOverride: exact,
+        testCases: [{ input: { id: 1 }, expected: 42 }],
+      });
+
+      expect(result.testCases[0].passed).toBe(true);
+      expect(result.testCases[0].fields['']).toBeDefined();
+    });
+  });
+
+  describe('unordered arrays', () => {
+    it('matches root-level primitive array regardless of order with unordered()', async () => {
       const result = await evaluate<Input, number[]>({
         executor: async () => ({ output: [3, 1, 2] }),
-        comparators: exact,
-        unorderedList: true,
+        comparators: unordered(exact),
         testCases: [{ input: { id: 1 }, expected: [1, 2, 3] }],
       });
 
@@ -575,15 +618,72 @@ describe('evaluate', () => {
       expect(result.testCases[0].totalFields).toBeGreaterThan(0);
     });
 
-    it('works with primitives', async () => {
-      const result = await evaluate<Input, number>({
-        executor: async () => ({ output: 42 }),
-        comparators: exact,
-        testCases: [{ input: { id: 1 }, expected: 42 }],
+    it('matches nested array regardless of order with unordered()', async () => {
+      type TagsOutput = { tags: string[] };
+
+      const result = await evaluate<Input, TagsOutput>({
+        executor: async () => ({ output: { tags: ['c', 'a', 'b'] } }),
+        comparators: {
+          tags: unordered(exact),
+        },
+        testCases: [{ input: { id: 1 }, expected: { tags: ['a', 'b', 'c'] } }],
       });
 
       expect(result.testCases[0].passed).toBe(true);
-      expect(result.testCases[0].fields['']).toBeDefined();
+    });
+
+    it('fails when unordered array has missing elements', async () => {
+      type TagsOutput = { tags: string[] };
+
+      const result = await evaluate<Input, TagsOutput>({
+        executor: async () => ({ output: { tags: ['a', 'b'] } }),
+        comparators: {
+          tags: unordered(exact),
+        },
+        testCases: [
+          { input: { id: 1 }, expected: { tags: ['a', 'b', 'c'] } },
+        ],
+      });
+
+      expect(result.testCases[0].passed).toBe(false);
+    });
+
+    it('matches unordered array of objects with nested comparators', async () => {
+      interface Item {
+        id: number;
+        name: string;
+      }
+      type ItemsOutput = { items: Item[] };
+
+      const result = await evaluate<Input, ItemsOutput>({
+        executor: async () => ({
+          output: {
+            items: [
+              { id: 2, name: 'Second' },
+              { id: 1, name: 'First' },
+            ],
+          },
+        }),
+        comparators: {
+          items: unordered({
+            id: exact,
+            name: exact,
+          }),
+        },
+        testCases: [
+          {
+            input: { id: 1 },
+            expected: {
+              items: [
+                { id: 1, name: 'First' },
+                { id: 2, name: 'Second' },
+              ],
+            },
+          },
+        ],
+      });
+
+      expect(result.testCases[0].passed).toBe(true);
     });
   });
 
@@ -606,7 +706,14 @@ describe('evaluate', () => {
         executor: async () => ({
           output: { user: { name: 'John', profile: { bio: 'Hello' } } },
         }),
-        comparators: { name: exact, bio: exact },
+        comparators: {
+          user: {
+            name: exact,
+            profile: {
+              bio: exact,
+            },
+          },
+        },
         testCases: [
           {
             input: { id: 1 },
@@ -626,7 +733,11 @@ describe('evaluate', () => {
         executor: async () => ({
           output: { items: [{ id: 1 }, { id: 2 }] },
         }),
-        comparators: { id: exact },
+        comparators: {
+          items: {
+            id: exact,
+          },
+        },
         testCases: [
           {
             input: { id: 1 },

@@ -20,7 +20,7 @@ import {
   mock,
   // Eval
   evaluate,
-} from '../src/index.js';
+} from '../index.js';
 
 // Import types to verify they're exported
 import type {
@@ -35,7 +35,7 @@ import type {
   OptimizeResult,
   EndpointConfig,
   FnConfig,
-} from '../src/index.js';
+} from '../index.js';
 
 describe('index exports', () => {
   describe('comparators', () => {

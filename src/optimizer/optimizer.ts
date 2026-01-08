@@ -6,10 +6,10 @@ import type {
   IterationLog,
   LogContext,
 } from './types.js';
-import type { Message, LLMResult } from '../llm/types.js';
-import { PROVIDER_SPECS } from '../constants.js';
-import { evaluate } from '../eval.js';
-import { callLLM } from '../llm/llm-client.js';
+import type { Message, LLMResult } from '../library/llm/types.js';
+import { PROVIDER_SPECS } from '../library/constants.js';
+import { evaluate } from '../eval/eval.js';
+import { callLLM } from '../library/llm/llm-client.js';
 import * as path from 'path';
 import {
   generateLogContent,
@@ -43,9 +43,6 @@ export async function optimize<TInput, TOutput>(
 ): Promise<OptimizeResult<TInput, TOutput>> {
   if (!config.apiKey) {
     throw new Error('apiKey is required');
-  }
-  if (!config.systemPrompt) {
-    throw new Error('systemPrompt is required');
   }
   if (config.targetSuccessRate < 0 || config.targetSuccessRate > 1) {
     throw new Error('targetSuccessRate must be between 0 and 1');

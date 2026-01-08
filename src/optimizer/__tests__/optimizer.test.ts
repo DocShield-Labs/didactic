@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { optimize } from '../optimizer.js';
-import { exact } from '../../comparators.js';
-import { mock } from '../../executors.js';
+import { exact } from '../../eval/comparators/comparators.js';
+import { mock } from '../../eval/executors.js';
 import { LLMProviders } from '../../types.js';
 import type { EvalConfig, OptimizeConfig } from '../../types.js';
 
@@ -39,7 +39,7 @@ vi.mock('openai', () => {
 
 // Suppress console logs during tests
 beforeEach(() => {
-  vi.spyOn(console, 'log').mockImplementation(() => { });
+  vi.spyOn(console, 'log').mockImplementation(() => {});
 });
 
 afterEach(() => {

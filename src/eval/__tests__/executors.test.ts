@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { endpoint, fn, mock } from '../src/executors.js';
+import { endpoint, fn, mock } from '../executors.js';
 
 describe('endpoint', () => {
   const originalFetch = globalThis.fetch;
