@@ -2,11 +2,14 @@ import type {
   EvalConfig,
   EvalResult,
   FieldResult,
-  ComparatorMap,
-} from './types.js';
-import { matchArrays } from './matching.js';
-import { exact } from './comparators.js';
-import { DEFAULT_PER_TEST_THRESHOLD } from './constants.js';
+  NestedComparatorConfig,
+  Comparator,
+  ComparatorWithOrdering,
+  LLMConfig,
+} from '../types.js';
+import { matchArrays } from './comparators/matching.js';
+import { exact } from './comparators/comparators.js';
+import { DEFAULT_PER_TEST_THRESHOLD } from '../library/constants.js';
 
 /**
  * Run all test cases and return results.
@@ -26,11 +29,6 @@ export async function evaluate<TInput, TOutput>(
     throw new Error('executor is required');
   }
 
-  if (!comparators && !comparatorOverride) {
-    throw new Error(
-      'either "comparators" (field mapping or single function) or "comparatorOverride" (whole-object) is required'
-    );
-  }
 
   // Execute a single test case
   const executeTestCase = async ({
@@ -47,7 +45,7 @@ export async function evaluate<TInput, TOutput>(
       let fields: Record<string, FieldResult>;
       if (comparatorOverride) {
         // Whole-object comparison mode (custom override)
-        const compResult = comparatorOverride(expected, result.output);
+        const compResult = await comparatorOverride(expected, result.output);
         fields = {
           '': {
             passed: compResult.passed,
@@ -55,37 +53,25 @@ export async function evaluate<TInput, TOutput>(
             actual: result.output,
           },
         };
-      } else if (typeof comparators === 'function') {
-        // Arrays always use element-wise comparison (for better debugging)
-        if (Array.isArray(expected)) {
-          // Descend into array elements (ordered or unordered based on config.unorderedList)
-          fields = compareFields({
-            expected,
-            actual: result.output,
-            comparators: { '': comparators },
-            unorderedList: config.unorderedList,
-          });
-        } else {
-          // Primitives and objects: whole-object comparison
-          const compResult = comparators(expected, result.output, {
-            expectedParent: undefined,
-            actualParent: undefined,
-          });
-          fields = {
-            '': {
-              ...compResult,
-              expected,
-              actual: result.output,
-            },
-          };
-        }
       } else {
-        // Field-level comparison mode (field mapping)
-        fields = compareFields({
+        // If comparators is a function (plain Comparator or ComparatorWithOrdering),
+        // wrap it in { '': comparators } for consistent handling of root-level outputs.
+        // Default to `exact` if no comparators provided.
+        let comparatorConfig: NestedComparatorConfig;
+        if (!comparators) {
+          comparatorConfig = { '': exact };
+        } else if (typeof comparators === 'function') {
+          comparatorConfig = { '': comparators };
+        } else {
+          comparatorConfig = comparators;
+        }
+
+        // Field-level comparison mode (nested structure)
+        fields = await compareFields({
           expected,
           actual: result.output,
-          comparators,
-          unorderedList: config.unorderedList,
+          comparators: comparatorConfig,
+          llmConfig: config.llmConfig,
         });
       }
 
@@ -95,12 +81,19 @@ export async function evaluate<TInput, TOutput>(
       const threshold = config.perTestThreshold ?? DEFAULT_PER_TEST_THRESHOLD;
       const passed = passRate >= threshold;
 
+      // Aggregate comparator costs from all fields
+      const comparatorCost = Object.values(fields).reduce(
+        (sum, field) => sum + (field.cost ?? 0),
+        0
+      );
+
       return {
         input,
         expected,
         actual: result.output,
         additionalContext: result.additionalContext,
         cost: result.cost ?? 0,
+        comparatorCost,
         passed,
         fields,
         passedFields,
@@ -113,6 +106,7 @@ export async function evaluate<TInput, TOutput>(
         expected,
         actual: undefined,
         cost: 0,
+        comparatorCost: 0,
         passed: false,
         fields: {},
         passedFields: 0,
@@ -169,6 +163,10 @@ export async function evaluate<TInput, TOutput>(
   }
   const accuracy = totalFields > 0 ? correctFields / totalFields : 0;
   const cost = results.reduce((sum, r) => sum + (r.cost ?? 0), 0);
+  const comparatorCost = results.reduce(
+    (sum, r) => sum + (r.comparatorCost ?? 0),
+    0
+  );
 
   return {
     systemPrompt,
@@ -180,6 +178,7 @@ export async function evaluate<TInput, TOutput>(
     totalFields,
     accuracy,
     cost,
+    comparatorCost,
   };
 }
 
@@ -187,15 +186,15 @@ export async function evaluate<TInput, TOutput>(
  * Recursively compare expected vs actual, returning field-level results.
  * Path patterns: 'carrier', 'quote.premium', '[0]', 'quotes[0].carrier'
  */
-function compareFields(opts: {
+async function compareFields(opts: {
   expected: unknown;
   actual: unknown;
-  comparators: ComparatorMap;
+  comparators: NestedComparatorConfig;
   path?: string;
   expectedParent?: unknown;
   actualParent?: unknown;
-  unorderedList?: boolean;
-}): Record<string, FieldResult> {
+  llmConfig?: LLMConfig;
+}): Promise<Record<string, FieldResult>> {
   const {
     expected,
     actual,
@@ -203,7 +202,7 @@ function compareFields(opts: {
     path = '',
     expectedParent,
     actualParent,
-    unorderedList = false,
+    llmConfig,
   } = opts;
   const results: Record<string, FieldResult> = {};
   const indexPath = (i: number) => (path ? `${path}[${i}]` : `[${i}]`);
@@ -217,14 +216,46 @@ function compareFields(opts: {
       return {};
     }
 
+    // Get the comparator config for this array field
+    const arrayFieldName = getFieldName(path);
+    const fieldComparator = comparators[arrayFieldName];
+
+    // Check if this specific array should use unordered matching
+    const isUnordered =
+      fieldComparator &&
+      typeof fieldComparator === 'function' &&
+      '_unordered' in fieldComparator &&
+      fieldComparator._unordered === true;
+
+    // Get nested comparators for array items
+    let itemComparators: NestedComparatorConfig;
+
+    if (isUnordered) {
+      // Unordered array: extract nested comparators from ComparatorWithOrdering
+      itemComparators =
+        (fieldComparator as ComparatorWithOrdering)._nestedComparators ||
+        comparators;
+    } else if (
+      fieldComparator &&
+      typeof fieldComparator === 'object' &&
+      !('_unordered' in fieldComparator)
+    ) {
+      // Ordered array with nested comparators: use the plain object directly
+      itemComparators = fieldComparator as NestedComparatorConfig;
+    } else {
+      // No nested comparators specified, use parent level
+      itemComparators = comparators;
+    }
+
     // Get matched pairs: [expectedIdx, actualIdx]
     let matchedPairs: [number, number][];
 
-    // If unorderedList is true, use the matching algorithm to find the best pairs (expected[i] -> actual[j])
-    if (unorderedList) {
-      matchedPairs = matchArrays(expected, actual, comparators).assignments;
+    if (isUnordered) {
+      // Use Hungarian algorithm to find best matches
+      matchedPairs = (await matchArrays(expected, actual, itemComparators))
+        .assignments;
     } else {
-      // Otherwise, use the simple index-based pairing (expected[i] -> actual[i])
+      // Use simple index-based pairing (ordered)
       matchedPairs = [];
       for (let i = 0; i < expected.length && i < actual.length; i++) {
         matchedPairs.push([i, i]);
@@ -237,22 +268,20 @@ function compareFields(opts: {
     for (const [expIdx, actIdx] of matchedPairs) {
       Object.assign(
         results,
-        compareFields({
+        await compareFields({
           expected: expected[expIdx],
           actual: actual[actIdx],
-          comparators,
+          comparators: itemComparators,
           path: indexPath(expIdx),
           expectedParent,
           actualParent,
-          unorderedList,
+          llmConfig,
         })
       );
     }
 
     // Report unmatched expected items as failures
-    const arrayFieldName = getFieldName(path);
-    const hasArrayComparator =
-      arrayFieldName in comparators || arrayFieldName === '';
+    const hasArrayComparator = fieldComparator !== undefined;
 
     for (let i = 0; i < expected.length; i++) {
       if (matchedIndices.has(i)) continue;
@@ -260,7 +289,7 @@ function compareFields(opts: {
       const item = expected[i];
       if (isObject(item)) {
         for (const [field, value] of Object.entries(item)) {
-          if (field in comparators) {
+          if (field in itemComparators) {
             results[`${indexPath(i)}.${field}`] = {
               passed: false,
               expected: value,
@@ -288,16 +317,34 @@ function compareFields(opts: {
 
     for (const [field, expValue] of Object.entries(expected)) {
       const fieldPath = path ? `${path}.${field}` : field;
+
+      // Check if this field has nested comparators
+      const fieldConfig = comparators[field];
+      let fieldComparators: NestedComparatorConfig;
+
+      if (
+        fieldConfig &&
+        typeof fieldConfig === 'object' &&
+        !('_unordered' in fieldConfig)
+      ) {
+        // It's a nested comparator config (plain object, not a comparator function)
+        fieldComparators = fieldConfig as NestedComparatorConfig;
+      } else {
+        // It's a comparator function (possibly with _unordered flag) or undefined
+        // Keep using current level comparators
+        fieldComparators = comparators;
+      }
+
       Object.assign(
         results,
-        compareFields({
+        await compareFields({
           expected: expValue,
           actual: actual[field],
-          comparators,
+          comparators: fieldComparators,
           path: fieldPath,
           expectedParent: expected,
           actualParent: actual,
-          unorderedList,
+          llmConfig,
         })
       );
     }
@@ -307,15 +354,36 @@ function compareFields(opts: {
 
   // ─── PRIMITIVES ─────────────────────────────────────────────────────────────
   const fieldName = getFieldName(path);
-  const comparator =
-    comparators[fieldName] ?? (fieldName === '' ? exact : undefined);
+  let comparatorConfig = comparators[fieldName];
 
-  if (!comparator) {
+  // If no comparator found and we're at root, use exact as default
+  if (!comparatorConfig && fieldName === '') {
+    comparatorConfig = exact;
+  }
+
+  if (!comparatorConfig) {
     return {};
   }
 
-  const result = comparator(expected, actual, { expectedParent, actualParent });
-  return { [path]: { ...result, expected, actual } };
+  // Extract the actual comparator function
+  // (could be a plain Comparator or a ComparatorWithOrdering)
+  const comparator: Comparator<unknown> =
+    typeof comparatorConfig === 'function'
+      ? comparatorConfig
+      : (exact as Comparator<unknown>);
+
+  const result = await comparator(expected, actual, {
+    expectedParent,
+    actualParent,
+    llmConfig,
+  });
+  return {
+    [path]: {
+      ...result,
+      expected,
+      actual,
+    },
+  };
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

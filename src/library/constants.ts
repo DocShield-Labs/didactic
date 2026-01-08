@@ -1,4 +1,5 @@
-import { LLMProviders, ProviderSpec } from './optimizer/types.js';
+import { LLMProviders } from '../types.js';
+import type { ProviderSpec } from '../optimizer/types.js';
 
 export const PROVIDER_SPECS: Record<LLMProviders, ProviderSpec> = {
   [LLMProviders.anthropic_claude_opus]: {
@@ -14,7 +15,7 @@ export const PROVIDER_SPECS: Record<LLMProviders, ProviderSpec> = {
     costPerMillionOutput: 15.0,
   },
   [LLMProviders.anthropic_claude_haiku]: {
-    model: 'claude-haiku-4-5-20251101',
+    model: 'claude-haiku-4-5-20251001',
     maxTokens: 64000,
     costPerMillionInput: 1.0,
     costPerMillionOutput: 5.0,

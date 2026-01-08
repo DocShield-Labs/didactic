@@ -1,9 +1,14 @@
-import type {
+import {
   Comparator,
   ComparatorContext,
   ComparatorResult,
-} from './types.js';
-import { NAME_SUFFIXES } from './constants.js';
+  ComparatorWithOrdering,
+  LLMProviders,
+  NestedComparatorConfig,
+} from '../../types.js';
+import { NAME_SUFFIXES } from '../../library/constants.js';
+import { callStructuredLLM } from '../../library/llm/llm-client.js';
+import type { JSONSchema } from '../../library/llm/types.js';
 import * as chrono from 'chrono-node';
 import { differenceInDays } from 'date-fns';
 import Levenshtein from 'levenshtein';
@@ -11,15 +16,16 @@ import Levenshtein from 'levenshtein';
 // ═══════════════════════════════════════════════════════════════════════════
 // COMPARATORS
 // ═══════════════════════════════════════════════════════════════════════════
-// contains  - substring check
-// custom    - user-defined logic
-// date      - normalized date comparison
-// exact     - deep equality (default)
-// name      - normalized name comparison
-// numeric   - normalized number comparison (.nullable variant)
-// oneOf     - enum validation
-// presence  - value exists check
-// within    - numeric tolerance
+// contains    - substring check
+// custom      - user-defined logic
+// date        - normalized date comparison
+// exact       - deep equality (default)
+// llmCompare  - LLM-based comparison with rationale
+// name        - normalized name comparison
+// numeric     - normalized number comparison (.nullable variant)
+// oneOf       - enum validation
+// presence    - value exists check
+// within      - numeric tolerance
 
 /** Checks if actual string contains a substring. */
 export function contains(substring: string): Comparator<string> {
@@ -191,6 +197,151 @@ export function within(config: {
 
     return { passed, similarity };
   };
+}
+
+/** Configuration for LLM-based comparison. */
+export interface LLMCompareConfig {
+  provider?: LLMProviders;
+  /** API key for LLM provider. If not provided, uses llmConfig.apiKey from eval config. */
+  apiKey?: string;
+  systemPrompt?: string;
+}
+
+/** Schema for LLM comparison response. */
+const LLM_COMPARE_SCHEMA: JSONSchema = {
+  type: 'object',
+  properties: {
+    passed: {
+      type: 'boolean',
+      description: 'Whether the actual value matches the expected value',
+    },
+    rationale: {
+      type: 'string',
+      description: 'Brief explanation of the comparison decision',
+    },
+  },
+  required: ['passed', 'rationale'],
+  additionalProperties: false,
+};
+
+/** Response type for LLM comparison. */
+interface LLMCompareResponse {
+  passed: boolean;
+  rationale: string;
+}
+
+const DEFAULT_LLM_COMPARE_SYSTEM_PROMPT = `Compare the following two values and determine if they are semantically equivalent.
+
+Focus on whether they convey the same core meaning or information, even if expressed differently. Consider synonyms, paraphrasing, and stylistic variations as acceptable. Only mark as failed if there are substantial differences in the actual facts or meaning being conveyed.`;
+
+const buildLLMCompareUserPrompt = (
+  expected: unknown,
+  actual: unknown
+): string => `Expected value:
+${JSON.stringify(expected, null, 2)}
+
+Actual value:
+${JSON.stringify(actual, null, 2)}`;
+
+/**
+ * Uses an LLM to compare expected vs actual values.
+ * Returns a comparison result with rationale and cost tracking.
+ * Default provider: anthropic_claude_haiku (fastest, cheapest).
+ */
+export function llmCompare(config: LLMCompareConfig): Comparator {
+  const systemPrompt = config.systemPrompt ?? DEFAULT_LLM_COMPARE_SYSTEM_PROMPT;
+
+  return async (expected, actual, context) => {
+    try {
+      // Resolve API key: use config.apiKey if provided, otherwise fall back to context.llmConfig
+      const apiKey = config.apiKey ?? context?.llmConfig?.apiKey;
+      if (!apiKey) {
+        throw new Error(
+          'llmCompare requires an apiKey. Either pass it directly to llmCompare() or set llmConfig.apiKey in eval config.'
+        );
+      }
+
+      // Resolve provider: use config.provider if provided, otherwise fall back to context.llmConfig, then default
+      const provider =
+        config.provider ??
+        context?.llmConfig?.provider ??
+        LLMProviders.anthropic_claude_haiku;
+
+      // Build user prompt with expected/actual values (always included)
+      const userPrompt = buildLLMCompareUserPrompt(expected, actual);
+
+      // Call LLM with structured output
+      const result = await callStructuredLLM<LLMCompareResponse>({
+        provider,
+        apiKey,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        schema: LLM_COMPARE_SCHEMA,
+      });
+
+      return {
+        passed: result.data.passed,
+        rationale: result.data.rationale,
+        cost: result.cost,
+        similarity: result.data.passed ? 1.0 : 0.0,
+      };
+    } catch (error) {
+      // On error, fail the comparison with error details
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      return {
+        passed: false,
+        rationale: `LLM comparison failed: ${errorMsg}`,
+        cost: 0,
+        similarity: 0.0,
+      };
+    }
+  };
+}
+
+/**
+ * Marks a comparator or comparator config as unordered.
+ * When applied to an array field, items will be matched by similarity
+ * rather than index position (using Hungarian algorithm).
+ *
+ * @example
+ * // Unordered array of objects
+ * lineItems: unordered({
+ *   description: name,
+ *   price: within({ tolerance: 5 })
+ * })
+ *
+ * @example
+ * // Unordered array of primitives
+ * tags: unordered(exact)
+ *
+ * @example
+ * // When entire output is an array
+ * comparators: unordered({
+ *   carrier: exact,
+ *   premium: within({ tolerance: 0.05 })
+ * })
+ */
+export function unordered<T>(
+  comparator: Comparator<T> | NestedComparatorConfig
+): ComparatorWithOrdering<T> {
+  // If passed a function, use it; if passed an object, create a placeholder that throws
+  const baseFunction =
+    typeof comparator === 'function'
+      ? comparator
+      : () => {
+          throw new Error(
+            'unordered() base function should not be called when nested comparators exist. ' +
+              'This is likely a bug in the evaluation logic.'
+          );
+        };
+
+  // Attach ordering metadata
+  return Object.assign(baseFunction, {
+    _unordered: true as const,
+    _nestedComparators: typeof comparator === 'object' ? comparator : undefined,
+  }) as ComparatorWithOrdering<T>;
 }
 
 // Private helpers

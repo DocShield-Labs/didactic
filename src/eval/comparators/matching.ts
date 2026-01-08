@@ -1,5 +1,5 @@
 import munkres from 'munkres-js';
-import type { ComparatorMap } from './types.js';
+import type { NestedComparatorConfig, Comparator } from '../../types.js';
 import { exact } from './comparators.js'; // Used for primitive comparison
 
 export interface MatchResult {
@@ -18,11 +18,11 @@ function isObject(value: unknown): value is Record<string, unknown> {
  * For objects: average similarity across all fields using comparator results.
  * For primitives: uses exact comparison's similarity score.
  */
-function getSimilarity(
+async function getSimilarity(
   expected: unknown,
   actual: unknown,
-  comparators: ComparatorMap
-): number {
+  comparators: NestedComparatorConfig
+): Promise<number> {
   // Arrays: recursively match and calculate average similarity
   if (Array.isArray(expected) && Array.isArray(actual)) {
     if (expected.length === 0 && actual.length === 0) {
@@ -32,10 +32,14 @@ function getSimilarity(
       return 0.0;
     }
 
-    const result = matchArrays(expected, actual, comparators);
+    const result = await matchArrays(expected, actual, comparators);
     let total = 0;
     for (const [expIdx, actIdx] of result.assignments) {
-      total += getSimilarity(expected[expIdx], actual[actIdx], comparators);
+      total += await getSimilarity(
+        expected[expIdx],
+        actual[actIdx],
+        comparators
+      );
     }
 
     // Penalize for unmatched items
@@ -49,7 +53,10 @@ function getSimilarity(
     return result.similarity ?? (result.passed ? 1.0 : 0.0);
   }
 
-  const fields = Object.keys(expected).filter((key) => comparators[key]);
+  const fields = Object.keys(expected).filter((key) => {
+    const comp = comparators[key];
+    return comp !== undefined && typeof comp === 'function';
+  });
 
   // Exit early if no fields with comparators to compare
   if (fields.length === 0) {
@@ -58,8 +65,12 @@ function getSimilarity(
 
   let total = 0;
   for (const key of fields) {
-    const comparator = comparators[key];
-    const result = comparator(expected[key], actual[key], {
+    const comparatorConfig = comparators[key];
+    // Extract the actual comparator function (handle ComparatorWithOrdering)
+    const comparator: Comparator<unknown> =
+      typeof comparatorConfig === 'function' ? comparatorConfig : exact;
+
+    const result = await comparator(expected[key], actual[key], {
       expectedParent: expected,
       actualParent: actual,
     });
@@ -74,14 +85,14 @@ function getSimilarity(
  *
  * @param expected - Array of expected items
  * @param actual - Array of actual items
- * @param comparators - Map of field names to comparator functions
+ * @param comparators - Nested comparator configuration for array items
  * @returns Matching result with assignments and unmatched indices
  */
-export function matchArrays(
+export async function matchArrays(
   expected: unknown[],
   actual: unknown[],
-  comparators: ComparatorMap = {}
-): MatchResult {
+  comparators: NestedComparatorConfig = {}
+): Promise<MatchResult> {
   // Handle empty arrays
   if (expected.length === 0) {
     return {
@@ -100,8 +111,14 @@ export function matchArrays(
   }
 
   // Build cost matrix: cost = 1 - similarity (lower cost = better match)
-  const matrix = expected.map((exp) =>
-    actual.map((act) => 1 - getSimilarity(exp, act, comparators))
+  const matrix = await Promise.all(
+    expected.map(async (exp) =>
+      Promise.all(
+        actual.map(
+          async (act) => 1 - (await getSimilarity(exp, act, comparators))
+        )
+      )
+    )
   );
 
   // Run Hungarian algorithm

@@ -1,5 +1,5 @@
-import type { TestCaseResult } from '../types.js';
-import type { IterationLog, LogContext, LLMProviders } from './types.js';
+import type { TestCaseResult, LLMProviders } from '../types.js';
+import type { IterationLog, LogContext } from './types.js';
 import * as fs from 'fs';
 import * as path from 'path';
 

@@ -1,31 +1,42 @@
+import type {
+  EvalConfig,
+  EvalResult,
+  Executor,
+  OptimizeConfig,
+  OptimizeResult,
+} from './types.js';
+import type { EndpointConfig, FnConfig } from './eval/executors.js';
+import { evaluate } from './eval/eval.js';
+import { optimize as runOptimize } from './optimizer/optimizer.js';
+import {
+  endpoint as createEndpoint,
+  fn as createFn,
+} from './eval/executors.js';
+
 // Re-export types
 export type {
-  // Comparator types
+  // Creating custom comparators
   Comparator,
   ComparatorContext,
   ComparatorResult,
-  ComparatorMap,
-  ComparatorsConfig,
-  // Executor types
+  // Creating custom executors
   Executor,
   ExecutorResult,
-  // Eval types
+  // Main API
   TestCase,
   EvalConfig,
-  FieldResult,
-  TestCaseResult,
   EvalResult,
-  // Optimizer types
-  Message,
-  IterationResult,
-  OptimizeResult,
   OptimizeConfig,
-  ProviderSpec,
-  LLMProviders,
+  OptimizeResult,
+  // LLM configuration
+  LLMConfig,
 } from './types.js';
 
+// Re-export LLM providers enum
+export { LLMProviders } from './types.js';
+
 // Re-export executor config types
-export type { EndpointConfig, FnConfig } from './executors.js';
+export type { EndpointConfig, FnConfig } from './eval/executors.js';
 
 // Re-export comparators
 export {
@@ -38,29 +49,23 @@ export {
   numeric,
   date,
   name,
-} from './comparators.js';
+  llmCompare,
+  unordered,
+} from './eval/comparators/comparators.js';
+
+// Re-export comparator config types
+export type { LLMCompareConfig } from './eval/comparators/comparators.js';
 
 // Re-export executors
-export { endpoint, fn, mock } from './executors.js';
+export { endpoint, fn, mock } from './eval/executors.js';
 
 // Re-export eval
-export { evaluate } from './eval.js';
+export { evaluate } from './eval/eval.js';
 
 // Re-export optimizer
 export { optimize } from './optimizer/optimizer.js';
 
 // Main didact namespace
-import type {
-  EvalConfig,
-  EvalResult,
-  Executor,
-  OptimizeConfig,
-} from './types.js';
-import type { OptimizeResult } from './optimizer/types.js';
-import type { EndpointConfig, FnConfig } from './executors.js';
-import { evaluate } from './eval.js';
-import { optimize as runOptimize } from './optimizer/optimizer.js';
-import { endpoint as createEndpoint, fn as createFn } from './executors.js';
 
 /**
  * Overloaded eval function with proper return type inference.

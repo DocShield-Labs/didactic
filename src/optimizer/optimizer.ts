@@ -3,19 +3,13 @@ import type {
   OptimizeConfig,
   IterationResult,
   OptimizeResult,
-  Message,
-  LLMResult,
   IterationLog,
   LogContext,
 } from './types.js';
-import {
-  PROVIDER_SPECS,
-  ANTHROPIC_THINKING_BUDGET_TOKENS,
-  TOKENS_PER_MILLION,
-} from '../constants.js';
-import { evaluate } from '../eval.js';
-import Anthropic from '@anthropic-ai/sdk';
-import OpenAI from 'openai';
+import type { Message, LLMResult } from '../library/llm/types.js';
+import { PROVIDER_SPECS } from '../library/constants.js';
+import { evaluate } from '../eval/eval.js';
+import { callLLM } from '../library/llm/llm-client.js';
 import * as path from 'path';
 import {
   generateLogContent,
@@ -49,9 +43,6 @@ export async function optimize<TInput, TOutput>(
 ): Promise<OptimizeResult<TInput, TOutput>> {
   if (!config.apiKey) {
     throw new Error('apiKey is required');
-  }
-  if (!config.systemPrompt) {
-    throw new Error('systemPrompt is required');
   }
   if (config.targetSuccessRate < 0 || config.targetSuccessRate > 1) {
     throw new Error('targetSuccessRate must be between 0 and 1');
@@ -355,85 +346,6 @@ export async function optimize<TInput, TOutput>(
   return finalizeOptimization(false, bestPrompt);
 }
 
-async function callLLM(
-  messages: Message[],
-  config: OptimizeConfig,
-  useThinking: boolean = false
-): Promise<LLMResult> {
-  const spec = PROVIDER_SPECS[config.provider];
-
-  try {
-    // Anthropic
-    if (config.provider.startsWith('anthropic')) {
-      const client = new Anthropic({ apiKey: config.apiKey });
-      const streamOptions: Parameters<typeof client.messages.stream>[0] = {
-        model: spec.model,
-        max_tokens: spec.maxTokens,
-        system: messages.find((m) => m.role === 'system')?.content,
-        messages: messages
-          .filter((m) => m.role !== 'system')
-          .map((m) => ({
-            role: m.role as 'user' | 'assistant',
-            content: m.content,
-          })),
-      };
-
-      if (useThinking) {
-        streamOptions.thinking = {
-          type: 'enabled',
-          budget_tokens: ANTHROPIC_THINKING_BUDGET_TOKENS,
-        };
-      }
-
-      const stream = client.messages.stream(streamOptions);
-      const finalMessage = await stream.finalMessage();
-
-      const textBlocks = finalMessage.content
-        .filter((block) => block.type === 'text')
-        .map((block) => block.text);
-      const text = textBlocks.length > 0 ? textBlocks.join(' ') : '';
-      const inputTokens = finalMessage.usage.input_tokens;
-      const outputTokens = finalMessage.usage.output_tokens;
-      const cost =
-        (inputTokens * spec.costPerMillionInput +
-          outputTokens * spec.costPerMillionOutput) /
-        TOKENS_PER_MILLION;
-
-      return { text, cost, inputTokens, outputTokens };
-    }
-
-    // OpenAI
-    if (config.provider.startsWith('openai')) {
-      const client = new OpenAI({ apiKey: config.apiKey });
-      const completionOptions: OpenAI.ChatCompletionCreateParamsNonStreaming = {
-        model: spec.model,
-        messages: messages.map((m) => ({ role: m.role, content: m.content })),
-        max_completion_tokens: spec.maxTokens,
-      };
-
-      if (useThinking) {
-        completionOptions.reasoning_effort = 'xhigh';
-      }
-
-      const response = await client.chat.completions.create(completionOptions);
-      const text = response.choices[0].message.content ?? '';
-      const inputTokens = response.usage?.prompt_tokens ?? 0;
-      const outputTokens = response.usage?.completion_tokens ?? 0;
-      const cost =
-        (inputTokens * spec.costPerMillionInput +
-          outputTokens * spec.costPerMillionOutput) /
-        TOKENS_PER_MILLION;
-
-      return { text, cost, inputTokens, outputTokens };
-    }
-
-    throw new Error(`Unsupported provider: ${config.provider}`);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`LLM call failed (${spec.model}): ${message}`);
-  }
-}
-
 async function generatePatch(
   failure: TestCaseResult,
   currentPrompt: string,
@@ -455,7 +367,12 @@ async function generatePatch(
     { role: 'user', content: userContent },
   ];
 
-  return callLLM(messages, config, config.thinking ?? false);
+  return callLLM({
+    provider: config.provider,
+    apiKey: config.apiKey,
+    messages,
+    useThinking: config.thinking ?? false,
+  });
 }
 
 async function mergePatches(
@@ -474,5 +391,10 @@ async function mergePatches(
     },
   ];
 
-  return callLLM(messages, config, config.thinking ?? false);
+  return callLLM({
+    provider: config.provider,
+    apiKey: config.apiKey,
+    messages,
+    useThinking: config.thinking ?? false,
+  });
 }

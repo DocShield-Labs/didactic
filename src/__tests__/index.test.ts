@@ -20,27 +20,22 @@ import {
   mock,
   // Eval
   evaluate,
-} from '../src/index.js';
+} from '../index.js';
 
 // Import types to verify they're exported
 import type {
   Comparator,
   ComparatorContext,
-  ComparatorResult,
+  ComparatorResult as _ComparatorResult,
   Executor,
-  ExecutorResult,
+  ExecutorResult as _ExecutorResult,
   TestCase,
-  EvalConfig,
-  FieldResult,
-  TestCaseResult,
-  EvalResult,
-  OptimizerConfig,
-  OptimizeOptions,
-  IterationResult,
-  OptimizeResult,
-  EndpointConfig,
-  FnConfig,
-} from '../src/index.js';
+  EvalConfig as _EvalConfig,
+  EvalResult as _EvalResult,
+  OptimizeResult as _OptimizeResult,
+  EndpointConfig as _EndpointConfig,
+  FnConfig as _FnConfig,
+} from '../index.js';
 
 describe('index exports', () => {
   describe('comparators', () => {
@@ -148,7 +143,7 @@ describe('index exports', () => {
 
     it('fn method wraps async function', () => {
       const executor = didactic.fn({
-        execute: async (input) => ({ result: input }),
+        fn: async (input) => ({ result: input }),
       });
       expect(typeof executor).toBe('function');
     });
@@ -158,24 +153,24 @@ describe('index exports', () => {
     // These tests verify types are exported correctly at compile time
     // The actual type checking happens during TypeScript compilation
 
-    it('allows creating typed comparators', () => {
+    it('allows creating typed comparators', async () => {
       const myComparator: Comparator<number> = (expected, actual) => ({
         passed: expected === actual,
         similarity: expected === actual ? 1.0 : 0.0,
       });
-      expect(myComparator(1, 1).passed).toBe(true);
+      expect((await myComparator(1, 1)).passed).toBe(true);
     });
 
-    it('allows using ComparatorContext', () => {
+    it('allows using ComparatorContext', async () => {
       const contextAwareComparator: Comparator<number> = (
         expected,
         actual,
-        context?: ComparatorContext
+        _context?: ComparatorContext
       ) => {
         // context is optional
         return { passed: expected === actual };
       };
-      expect(contextAwareComparator(1, 1).passed).toBe(true);
+      expect((await contextAwareComparator(1, 1)).passed).toBe(true);
     });
 
     it('allows creating typed executors', () => {

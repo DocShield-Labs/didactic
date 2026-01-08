@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { optimize } from '../src/optimizer/optimizer.js';
-import { exact } from '../src/comparators.js';
-import { mock } from '../src/executors.js';
-import { LLMProviders } from '../src/types.js';
-import type { EvalConfig, OptimizeConfig } from '../src/types.js';
+import { optimize } from '../optimizer.js';
+import { exact } from '../../eval/comparators/comparators.js';
+import { mock } from '../../eval/executors.js';
+import { LLMProviders } from '../../types.js';
+import type { EvalConfig, OptimizeConfig } from '../../types.js';
 
 // Mock the Anthropic SDK
 vi.mock('@anthropic-ai/sdk', () => {
@@ -39,7 +39,7 @@ vi.mock('openai', () => {
 
 // Suppress console logs during tests
 beforeEach(() => {
-  vi.spyOn(console, 'log').mockImplementation(() => {});
+  vi.spyOn(console, 'log').mockImplementation(() => { });
 });
 
 afterEach(() => {
@@ -66,17 +66,6 @@ describe('optimize', () => {
           provider: LLMProviders.anthropic_claude_sonnet,
         })
       ).rejects.toThrow('apiKey is required');
-    });
-
-    it('throws when systemPrompt is missing', async () => {
-      await expect(
-        optimize(baseEvalConfig, {
-          systemPrompt: '',
-          targetSuccessRate: 0.9,
-          apiKey: 'test-key',
-          provider: LLMProviders.anthropic_claude_sonnet,
-        })
-      ).rejects.toThrow('systemPrompt is required');
     });
 
     it('throws when targetSuccessRate is below 0', async () => {

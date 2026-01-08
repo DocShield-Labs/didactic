@@ -31,7 +31,9 @@
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "gen:mermaid": "mmdc -i docs/charts.md -o docs/diagram.svg"
+    "gen:mermaid": "mmdc -i docs/charts.md -o docs/diagram.svg",
+    "example:eval:invoice-parser": "tsx example/eval/invoice-parser/index.ts",
+    "example:optimizer:expense-categorizer": "tsx example/optimizer/expense-categorizer/index.ts"
   },
   "keywords": [
     "llm",
@@ -72,6 +74,7 @@
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.7.4",
     "tsdown": "^0.18.1",
+    "tsx": "^4.21.0",
     "typescript": "^5.5.0",
     "typescript-eslint": "^8.51.0",
     "vitest": "^4.0.16"
