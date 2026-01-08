@@ -19,15 +19,19 @@ export type {
   Comparator,
   ComparatorContext,
   ComparatorResult,
+
   // Creating custom executors
   Executor,
   ExecutorResult,
+
   // Main API
   TestCase,
+  TestCaseResult,
   EvalConfig,
   EvalResult,
   OptimizeConfig,
   OptimizeResult,
+
   // LLM configuration
   LLMConfig,
 } from './types.js';
