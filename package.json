@@ -32,7 +32,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "gen:mermaid": "mmdc -i docs/charts.md -o docs/diagram.svg",
-    "example:eval:invoice-parser": "tsx example/eval/invoice-parser/invoice-parser.ts"
+    "example:eval:invoice-parser": "tsx example/eval/invoice-parser/index.ts",
+    "example:optimizer:expense-categorizer": "tsx example/optimizer/expense-categorizer/index.ts"
   },
   "keywords": [
     "llm",
