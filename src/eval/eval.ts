@@ -6,10 +6,15 @@ import type {
   Comparator,
   ComparatorWithOrdering,
   LLMConfig,
+  TestCaseResult,
 } from '../types.js';
 import { matchArrays } from './comparators/matching.js';
 import { exact } from './comparators/comparators.js';
 import { DEFAULT_PER_TEST_THRESHOLD } from '../library/constants.js';
+import {
+  createProgressUpdater,
+  trackPromiseProgress,
+} from '../optimizer/optimizer-logging.js';
 
 /**
  * Run all test cases and return results.
@@ -28,7 +33,6 @@ export async function evaluate<TInput, TOutput>(
   if (!executor) {
     throw new Error('executor is required');
   }
-
 
   // Execute a single test case
   const executeTestCase = async ({
@@ -119,15 +123,20 @@ export async function evaluate<TInput, TOutput>(
 
   // Run test cases (batched or all in parallel)
   const rateLimitBatch = config.rateLimitBatch;
-  let results;
+  let results: TestCaseResult<TInput, TOutput>[];
 
   if (rateLimitBatch && rateLimitBatch > 0) {
     // Batched execution: run N test cases at a time
     results = [];
+    const progress = createProgressUpdater('evals');
+
     for (let i = 0; i < testCases.length; i += rateLimitBatch) {
       const batch = testCases.slice(i, i + rateLimitBatch);
       const batchResults = await Promise.all(batch.map(executeTestCase));
       results.push(...batchResults);
+
+      // Update progress
+      progress.update(results.length, testCases.length);
 
       // Pause between batches (skip after last batch)
       const rateLimitPause = config.rateLimitPause;
@@ -139,9 +148,27 @@ export async function evaluate<TInput, TOutput>(
         await new Promise((r) => setTimeout(r, rateLimitPause * 1000));
       }
     }
+
+    progress.finish();
   } else {
     // Run all test cases in parallel
-    results = await Promise.all(testCases.map(executeTestCase));
+    const progress = createProgressUpdater('evals');
+
+    const wrappedTasks = testCases.map((tc) => executeTestCase(tc));
+
+    // Track progress as each test completes
+    const settledResults = await trackPromiseProgress(
+      wrappedTasks,
+      (completed, total) => progress.update(completed, total)
+    );
+
+    // Extract values (all are fulfilled since executeTestCase catches errors internally)
+    results = settledResults.map(
+      (r) =>
+        (r as PromiseFulfilledResult<TestCaseResult<TInput, TOutput>>).value
+    );
+
+    progress.finish();
   }
 
   // Sort: failures first (by passRate ascending), then passes (100% at bottom)

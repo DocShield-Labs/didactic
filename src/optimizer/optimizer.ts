@@ -21,6 +21,7 @@ import {
   logMergeResult,
   logMergeStart,
   logOptimizationComplete,
+  logOptimizerHeader,
   logPatchGenerationFailures,
   logPatchGenerationResult,
   logPatchGenerationStart,
@@ -29,6 +30,8 @@ import {
   logTargetReached,
   writeLog,
   writeFinalLogs,
+  createProgressUpdater,
+  trackPromiseProgress,
 } from './optimizer-logging.js';
 import {
   DEFAULT_PATCH_SYSTEM_PROMPT,
@@ -154,6 +157,10 @@ export async function optimize<TInput, TOutput>(
       : { success, finalPrompt, iterations, totalCost: cumulativeCost };
   };
 
+  // Log optimizer header
+  const testCount = evalConfig.testCases?.length ?? 0;
+  logOptimizerHeader(model, config.targetSuccessRate, testCount);
+
   // Main optimization loop
   for (let i = 1; i <= maxIterations; i++) {
     const iterationStart = Date.now();
@@ -175,6 +182,8 @@ export async function optimize<TInput, TOutput>(
     cumulativeCost += result.cost;
     logEvaluationResult(result, cumulativeCost, Date.now() - evalStart);
 
+
+    // Check for regression
     const regressed = i > 1 && result.successRate < bestSuccessRate;
     if (regressed) {
       logRegressionDetected(bestSuccessRate);
@@ -236,7 +245,9 @@ export async function optimize<TInput, TOutput>(
     logPatchGenerationStart(failures.length);
     const patchStart = Date.now();
 
-    const patchSettled = await Promise.allSettled(
+    const patchProgress = createProgressUpdater('patches');
+
+    const patchSettled = await trackPromiseProgress(
       failures.map((failure) =>
         generatePatch(
           failure,
@@ -245,8 +256,12 @@ export async function optimize<TInput, TOutput>(
           regressed ? bestPrompt : undefined,
           regressed ? bestPromptFailures : undefined
         )
-      )
+      ),
+      (completed, total) => patchProgress.update(completed, total)
     );
+
+    patchProgress.finish();
+
     const patchResults = patchSettled
       .filter(
         (r): r is PromiseFulfilledResult<LLMResult> => r.status === 'fulfilled'

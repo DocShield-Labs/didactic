@@ -2,6 +2,16 @@ import type { TestCaseResult, LLMProviders } from '../types.js';
 import type { IterationLog, LogContext } from './types.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import {
+  theme,
+  spinner,
+  createProgressTracker,
+  formatCost,
+  formatCostShort,
+  formatDuration,
+  formatPercentage,
+  type ProgressTracker,
+} from './ui.js';
 
 // Re-export types for backward compatibility
 export type { IterationLog, LogContext };
@@ -77,6 +87,7 @@ interface FailureData {
   input: unknown;
   expected: unknown;
   actual: unknown;
+  additionalContext?: unknown;
   fields: Record<
     string,
     { expected: unknown; actual: unknown; passed: boolean }
@@ -123,6 +134,7 @@ interface BestRunFailure {
   input: unknown;
   expected: unknown;
   actual: unknown;
+  additionalContext?: unknown;
   failedFields: Record<string, { expected: unknown; actual: unknown }>;
 }
 
@@ -132,6 +144,7 @@ interface BestRunPartialFailure {
   input: unknown;
   expected: unknown;
   actual: unknown;
+  additionalContext?: unknown;
   failedFields: Record<string, { expected: unknown; actual: unknown }>;
 }
 
@@ -140,6 +153,7 @@ interface BestRunSuccess {
   input: unknown;
   expected: unknown;
   actual: unknown;
+  additionalContext?: unknown;
 }
 
 interface BestRunReport {
@@ -176,6 +190,96 @@ function formatTokensCompact(tokens: number): string {
   return String(tokens);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PROGRESS TRACKING
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Progress bar updater interface */
+interface ProgressUpdater {
+  update(completed: number, total: number): void;
+  finish(): void;
+  clear(): void;
+}
+
+/**
+ * Clear any active progress line before logging
+ * Call this before all console.log statements
+ */
+export function clearProgressLine(): void {
+  const width = process.stdout.columns || 80;
+  process.stdout.write('\r' + ' '.repeat(width) + '\r');
+}
+
+/**
+ * Create a progress updater using cli-progress for beautiful output
+ */
+export function createProgressUpdater(label: string): ProgressUpdater {
+  let tracker: ProgressTracker | null = null;
+  let total = 0;
+
+  return {
+    update(completed: number, newTotal: number) {
+      // Initialize on first call
+      if (!tracker) {
+        total = newTotal;
+        tracker = createProgressTracker(label);
+        tracker.start(total);
+      }
+      tracker.update(completed);
+    },
+
+    finish() {
+      if (tracker) {
+        tracker.stop();
+        tracker = null;
+      }
+    },
+
+    clear() {
+      clearProgressLine();
+    },
+  };
+}
+
+/**
+ * Track progress of Promise.allSettled with real-time updates
+ *
+ * @param promises Array of promises to track
+ * @param onProgress Callback called when each promise settles
+ * @returns Promise.allSettled result
+ */
+export async function trackPromiseProgress<T>(
+  promises: Promise<T>[],
+  onProgress: (completed: number, total: number) => void
+): Promise<PromiseSettledResult<T>[]> {
+  if (promises.length === 0) {
+    return [];
+  }
+
+  let completed = 0;
+  const total = promises.length;
+
+  // Initial progress
+  onProgress(0, total);
+
+  // Wrap each promise to track completion
+  const wrappedPromises = promises.map((promise) =>
+    promise
+      .then((value) => {
+        completed++;
+        onProgress(completed, total);
+        return { status: 'fulfilled' as const, value };
+      })
+      .catch((reason) => {
+        completed++;
+        onProgress(completed, total);
+        return { status: 'rejected' as const, reason };
+      })
+  );
+
+  return Promise.all(wrappedPromises);
+}
+
 export function formatFailure(testCase: TestCaseResult): string {
   const lines: string[] = [];
 
@@ -185,7 +289,7 @@ export function formatFailure(testCase: TestCaseResult): string {
 
   if (testCase.additionalContext) {
     lines.push(
-      `Context: ${JSON.stringify(testCase.additionalContext, null, 2)}`
+      `Additional Context: ${JSON.stringify(testCase.additionalContext, null, 2)}`
     );
   }
 
@@ -235,20 +339,32 @@ function computeTotals(iterations: IterationLog[]): {
 // CONSOLE LOGGING
 // ═══════════════════════════════════════════════════════════════════════════
 
-function formatDurationForLog(ms: number): string {
-  const seconds = Math.round(ms / 1000);
-  if (seconds < 60) return `(${seconds}s)`;
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return `(${minutes}m ${remainingSeconds}s)`;
+export function logOptimizerHeader(
+  model: string,
+  targetRate: number,
+  testCount: number
+): void {
+  spinner.stop();
+  console.log('');
+  console.log(theme.bold('Didactic Optimizer'));
+  console.log(
+    `  ${theme.dim('Model:')} ${model}${theme.separator}${theme.dim('Target:')} ${formatPercentage(targetRate)}${theme.separator}${theme.dim('Tests:')} ${testCount}`
+  );
 }
 
 export function logIterationStart(iterationLabel: string): void {
-  console.log(`\n=== Optimization Iteration ${iterationLabel} ===`);
+  spinner.stop();
+  clearProgressLine();
+  console.log('');
+  console.log(theme.divider(`Iteration ${iterationLabel}`));
+  console.log('');
 }
 
 export function logEvaluationStart(): void {
-  console.log(`  Evaluating prompt...`);
+  spinner.stop();
+  clearProgressLine();
+  console.log(`  ${theme.bold('Evaluating prompt')}`);
+  spinner.start('Running evals...');
 }
 
 export function logEvaluationResult(
@@ -256,20 +372,39 @@ export function logEvaluationResult(
   cumulativeCost: number,
   durationMs: number
 ): void {
+  spinner.stop();
+  clearProgressLine();
+
+  // Success rate line
+  const successIcon =
+    result.successRate >= 0.9
+      ? theme.check
+      : result.successRate >= 0.5
+        ? theme.warn
+        : theme.cross;
   console.log(
-    `  Result: ${result.passed}/${result.total} passed (${(result.successRate * 100).toFixed(1)}%) | Cost: $${result.cost.toFixed(4)} | Total: $${cumulativeCost.toFixed(4)} ${formatDurationForLog(durationMs)}`
+    `    ${successIcon} ${theme.bold(formatPercentage(result.successRate))} success rate  ${theme.dim(`(${result.passed}/${result.total} passed)`)}`
+  );
+
+  // Cost line
+  console.log(
+    `    ${theme.dim('Cost:')} ${formatCost(result.cost)}${theme.separator}${theme.dim('Total:')} ${formatCostShort(cumulativeCost)}${theme.separator}${theme.dim(formatDuration(durationMs))}`
   );
 }
 
 export function logRegressionDetected(bestSuccessRate: number): void {
+  spinner.stop();
+  clearProgressLine();
   console.log(
-    `  → Regression detected (was ${(bestSuccessRate * 100).toFixed(1)}%)`
+    `    ${theme.pointer} ${theme.warning('Regression')} ${theme.dim(`(was ${formatPercentage(bestSuccessRate)})`)}`
   );
 }
 
 export function logTargetReached(targetSuccessRate: number): void {
+  spinner.stop();
+  clearProgressLine();
   console.log(
-    `  Target: ${(targetSuccessRate * 100).toFixed(0)}% | ✓ Target reached!`
+    `    ${theme.check} ${theme.success('Target reached!')} ${theme.dim(`(${formatPercentage(targetSuccessRate)})`)}`
   );
 }
 
@@ -277,18 +412,27 @@ export function logTargetFailures(
   targetSuccessRate: number,
   failureCount: number
 ): void {
+  spinner.stop();
+  clearProgressLine();
   console.log(
-    `  Target: ${(targetSuccessRate * 100).toFixed(0)}% | ${failureCount} failures to address`
+    `    ${theme.cross} ${theme.error(`${failureCount} failures`)} to address ${theme.dim(`(target: ${formatPercentage(targetSuccessRate)})`)}`
   );
 }
 
 export function logCostLimitReached(cumulativeCost: number): void {
-  console.log(`  Cost limit reached ($${cumulativeCost.toFixed(2)})`);
+  spinner.stop();
+  clearProgressLine();
+  console.log(
+    `    ${theme.warn} ${theme.warning('Cost limit reached')} ${theme.dim(`($${cumulativeCost.toFixed(2)})`)}`
+  );
 }
 
 export function logPatchGenerationStart(failureCount: number): void {
-  console.log(``);
-  console.log(`  Generating ${failureCount} patches in parallel...`);
+  spinner.stop();
+  clearProgressLine();
+  console.log('');
+  console.log(`  ${theme.bold('Generating patches')}`);
+  spinner.start(`Generating ${failureCount} patches in parallel...`);
 }
 
 export function logPatchGenerationResult(
@@ -296,14 +440,19 @@ export function logPatchGenerationResult(
   cumulativeCost: number,
   durationMs: number
 ): void {
+  spinner.stop();
+  clearProgressLine();
   console.log(
-    `  Patches generated | Cost: $${patchCost.toFixed(4)} | Total: $${cumulativeCost.toFixed(4)} ${formatDurationForLog(durationMs)}`
+    `    ${theme.check} Patches generated${theme.separator}${theme.dim('Cost:')} ${formatCost(patchCost)}${theme.separator}${theme.dim('Total:')} ${formatCostShort(cumulativeCost)}${theme.separator}${theme.dim(formatDuration(durationMs))}`
   );
 }
 
 export function logMergeStart(): void {
-  console.log(``);
-  console.log(`  Merging patches...`);
+  spinner.stop();
+  clearProgressLine();
+  console.log('');
+  console.log(`  ${theme.bold('Merging patches')}`);
+  spinner.start('Merging patches...');
 }
 
 export function logMergeResult(
@@ -311,8 +460,10 @@ export function logMergeResult(
   cumulativeCost: number,
   durationMs: number
 ): void {
+  spinner.stop();
+  clearProgressLine();
   console.log(
-    `  Patches merged | Cost: $${mergeCost.toFixed(4)} | Total: $${cumulativeCost.toFixed(4)} ${formatDurationForLog(durationMs)}`
+    `    ${theme.check} Merged${theme.separator}${theme.dim('Cost:')} ${formatCost(mergeCost)}${theme.separator}${theme.dim('Total:')} ${formatCostShort(cumulativeCost)}${theme.separator}${theme.dim(formatDuration(durationMs))}`
   );
 }
 
@@ -320,7 +471,11 @@ export function logPatchGenerationFailures(
   failedCount: number,
   totalCount: number
 ): void {
-  console.log(`  ⚠ ${failedCount}/${totalCount} patch generations failed`);
+  spinner.stop();
+  clearProgressLine();
+  console.log(
+    `    ${theme.warn} ${theme.warning(`${failedCount}/${totalCount} patch generations failed`)}`
+  );
 }
 
 export function logOptimizationComplete(
@@ -328,15 +483,29 @@ export function logOptimizationComplete(
   targetSuccessRate: number,
   cumulativeCost: number
 ): void {
-  console.log(`\n=== Optimization Complete ===`);
+  spinner.stop();
+  clearProgressLine();
+  console.log('');
+  console.log(theme.divider('Complete'));
+  console.log('');
+
+  const targetMet = bestSuccessRate >= targetSuccessRate;
+  const icon = targetMet ? theme.check : theme.cross;
+  const rateColor = targetMet ? theme.success : theme.error;
+
   console.log(
-    `Best result: ${(bestSuccessRate * 100).toFixed(1)}% (target was ${(targetSuccessRate * 100).toFixed(0)}%)`
+    `  ${icon} ${theme.bold('Best:')} ${rateColor(formatPercentage(bestSuccessRate))}`
   );
-  console.log(`Total cost: $${cumulativeCost.toFixed(4)}`);
+  console.log(
+    `  ${theme.dim('Target:')} ${formatPercentage(targetSuccessRate)}${theme.separator}${theme.dim('Total Cost:')} ${formatCostShort(cumulativeCost)}`
+  );
 }
 
 export function logLogsWritten(logPath: string): void {
-  console.log(`Logs written to: ${logPath}`);
+  spinner.stop();
+  clearProgressLine();
+  console.log(`  ${theme.dim('Logs written to:')} ${logPath}`);
+  console.log('');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -607,6 +776,7 @@ export function writeRawDataJson(
             input: tc.input,
             expected: tc.expected,
             actual: tc.actual,
+            additionalContext: tc.additionalContext,
             fields: tc.fields,
           });
         }
@@ -720,6 +890,7 @@ export function writeBestRunJson(
         input: tc.input,
         expected: tc.expected,
         actual: tc.actual,
+        additionalContext: tc.additionalContext,
         failedFields: extractFailedFields(tc.fields),
       });
     } else if (tc.passRate < 1) {
@@ -730,6 +901,7 @@ export function writeBestRunJson(
         input: tc.input,
         expected: tc.expected,
         actual: tc.actual,
+        additionalContext: tc.additionalContext,
         failedFields: extractFailedFields(tc.fields),
       });
     } else {
@@ -739,6 +911,7 @@ export function writeBestRunJson(
         input: tc.input,
         expected: tc.expected,
         actual: tc.actual,
+        additionalContext: tc.additionalContext,
       });
     }
   });
