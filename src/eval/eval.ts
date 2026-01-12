@@ -345,8 +345,14 @@ async function compareFields(opts: {
     for (const [field, expValue] of Object.entries(expected)) {
       const fieldPath = path ? `${path}.${field}` : field;
 
-      // Check if this field has nested comparators
+      // Check if this field has a comparator (direct or nested)
       const fieldConfig = comparators[field];
+
+      // Skip fields without any comparator defined
+      if (fieldConfig === undefined) {
+        continue;
+      }
+
       let fieldComparators: NestedComparatorConfig;
 
       if (
