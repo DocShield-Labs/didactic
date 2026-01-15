@@ -142,6 +142,7 @@ interface BaseEvalConfig<TInput = unknown, TOutput = unknown> {
   rateLimitBatch?: number; // Run N test cases at a time (default: all in parallel)
   rateLimitPause?: number; // Wait N seconds between batches
   llmConfig?: LLMConfig; // Default LLM config for LLM-based comparators (e.g., llmCompare)
+  storeLogs?: boolean | string; // true = default path, string = custom path
 }
 
 /**
@@ -214,4 +215,5 @@ export interface EvalResult<TInput = unknown, TOutput = unknown> {
   accuracy: number;
   cost: number; // Total executor cost
   comparatorCost: number; // Total comparator cost
+  logFolder?: string; // Path to log folder if storeLogs enabled
 }
