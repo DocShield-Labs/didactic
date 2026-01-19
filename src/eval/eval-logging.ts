@@ -51,44 +51,52 @@ export function writeEvalLogs<TInput, TOutput>(
   durationMs: number,
   perTestThreshold?: number
 ): void {
-  const dir = path.dirname(logPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+  try {
+    const dir = path.dirname(logPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    const report: EvalReport = {
+      metadata: {
+        timestamp: new Date().toISOString(),
+        systemPrompt: result.systemPrompt,
+        testCaseCount: result.total,
+        perTestThreshold: perTestThreshold ?? DEFAULT_PER_TEST_THRESHOLD,
+      },
+      summary: {
+        passed: result.passed,
+        total: result.total,
+        successRate: result.successRate,
+        correctFields: result.correctFields,
+        totalFields: result.totalFields,
+        accuracy: result.accuracy,
+        executorCost: result.cost,
+        comparatorCost: result.comparatorCost,
+        totalCost: result.cost + result.comparatorCost,
+        durationMs,
+      },
+      testCases: result.testCases.map((tc, index) => ({
+        index,
+        passed: tc.passed,
+        passRate: tc.passRate,
+        input: tc.input,
+        expected: tc.expected,
+        actual: tc.actual,
+        additionalContext: tc.additionalContext,
+        executorCost: tc.cost ?? 0,
+        comparatorCost: tc.comparatorCost ?? 0,
+        error: tc.error,
+        fields: tc.fields,
+      })),
+    };
+
+    fs.writeFileSync(logPath, JSON.stringify(report, null, 2), 'utf-8');
+  } catch (error) {
+    console.error(
+      `Failed to write eval logs to ${logPath}:`,
+      error instanceof Error ? error.message : String(error)
+    );
+    // Don't throw - evaluation succeeded, just log persistence failed
   }
-
-  const report: EvalReport = {
-    metadata: {
-      timestamp: new Date().toISOString(),
-      systemPrompt: result.systemPrompt,
-      testCaseCount: result.total,
-      perTestThreshold: perTestThreshold ?? DEFAULT_PER_TEST_THRESHOLD,
-    },
-    summary: {
-      passed: result.passed,
-      total: result.total,
-      successRate: result.successRate,
-      correctFields: result.correctFields,
-      totalFields: result.totalFields,
-      accuracy: result.accuracy,
-      executorCost: result.cost,
-      comparatorCost: result.comparatorCost,
-      totalCost: result.cost + result.comparatorCost,
-      durationMs,
-    },
-    testCases: result.testCases.map((tc, index) => ({
-      index,
-      passed: tc.passed,
-      passRate: tc.passRate,
-      input: tc.input,
-      expected: tc.expected,
-      actual: tc.actual,
-      additionalContext: tc.additionalContext,
-      executorCost: tc.cost ?? 0,
-      comparatorCost: tc.comparatorCost ?? 0,
-      error: tc.error,
-      fields: tc.fields,
-    })),
-  };
-
-  fs.writeFileSync(logPath, JSON.stringify(report, null, 2), 'utf-8');
 }

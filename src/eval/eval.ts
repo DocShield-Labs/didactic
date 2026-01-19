@@ -43,7 +43,7 @@ export async function evaluate<TInput, TOutput>(
   const logPath = config.storeLogs
     ? typeof config.storeLogs === 'string'
       ? config.storeLogs
-      : `./didactic-logs/eval_${Date.now()}/rawData.json`
+      : `./didactic-logs/eval_${Date.now()}_${Math.random().toString(36).slice(2, 8)}/rawData.json`
     : undefined;
 
   // Execute a single test case
