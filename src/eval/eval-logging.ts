@@ -36,7 +36,9 @@ interface TestCaseData {
   expected: unknown;
   actual: unknown;
   additionalContext?: unknown;
+  /** Executor cost. 0 indicates either zero cost or cost not tracked. */
   executorCost: number;
+  /** Comparator cost. 0 indicates either zero cost or cost not tracked. */
   comparatorCost: number;
   error?: string;
   fields: Record<string, FieldResult>;
@@ -44,6 +46,9 @@ interface TestCaseData {
 
 /**
  * Write evaluation results to rawData.json
+ *
+ * Synchronous writes are intentional - logging runs after evaluation completes
+ * and errors are caught. This avoids async complexity in the calling code.
  */
 export function writeEvalLogs<TInput, TOutput>(
   logPath: string,

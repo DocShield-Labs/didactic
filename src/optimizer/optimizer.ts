@@ -196,6 +196,7 @@ export async function optimize<TInput, TOutput>(
     }
 
     // Target reached
+    // Success is determined by reaching targetSuccessRate, not zero failures.
     if (result.successRate >= config.targetSuccessRate) {
       logTargetReached(config.targetSuccessRate);
       recordIteration(

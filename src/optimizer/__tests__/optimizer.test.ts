@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
 import { optimize } from '../optimizer.js';
 import { exact } from '../../eval/comparators/comparators.js';
 import { mock } from '../../eval/executors.js';
@@ -524,10 +524,6 @@ describe('optimize', () => {
   });
 
   describe('storeLogs', () => {
-    beforeEach(() => {
-      vi.clearAllMocks();
-    });
-
     it('writes logs to disk when storeLogs is true', async () => {
       const evalConfig: EvalConfig<Input, Output> = {
         executor: mock([{ value: 1 }]),
@@ -836,5 +832,9 @@ describe('optimize', () => {
       // First iteration should have 1 pass, second should have 0
       expect(result.iterations[0].passed).toBe(1);
     });
+  });
+
+  afterAll(() => {
+    vi.restoreAllMocks();
   });
 });
