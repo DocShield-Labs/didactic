@@ -4,6 +4,9 @@ import { exact, within, unordered } from '../comparators/comparators.js';
 import { mock } from '../executors.js';
 import type { Executor } from '../../types.js';
 
+// Allow 20% timing tolerance for setTimeout imprecision
+const TIMING_TOLERANCE = 0.8;
+
 type Input = { id: number };
 type Output = { v: number };
 
@@ -1023,7 +1026,8 @@ describe('evaluate', () => {
       });
       const elapsed = Date.now() - startTime;
       // Should have at least one 50ms pause between the two single-item batches
-      expect(elapsed).toBeGreaterThanOrEqual(40);
+      const expectedPause = 50; // ms
+      expect(elapsed).toBeGreaterThanOrEqual(expectedPause * TIMING_TOLERANCE);
     });
 
     it('does not pause after the last batch', async () => {

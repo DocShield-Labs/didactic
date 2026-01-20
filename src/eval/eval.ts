@@ -17,6 +17,7 @@ import {
 } from '../optimizer/optimizer-logging.js';
 import { writeEvalLogs } from './eval-logging.js';
 import * as path from 'path';
+import * as crypto from 'crypto';
 
 /**
  * Run all test cases and return results.
@@ -43,7 +44,7 @@ export async function evaluate<TInput, TOutput>(
   const logPath = config.storeLogs
     ? typeof config.storeLogs === 'string'
       ? config.storeLogs
-      : `./didactic-logs/eval_${Date.now()}_${Math.random().toString(36).slice(2, 8)}/rawData.json`
+      : `./didactic-logs/eval_${Date.now()}_${crypto.randomUUID().slice(0, 8)}/rawData.json`
     : undefined;
 
   // Execute a single test case
