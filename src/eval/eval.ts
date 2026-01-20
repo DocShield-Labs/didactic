@@ -15,6 +15,9 @@ import {
   createProgressUpdater,
   trackPromiseProgress,
 } from '../optimizer/optimizer-logging.js';
+import { writeEvalLogs } from './eval-logging.js';
+import * as path from 'path';
+import * as crypto from 'crypto';
 
 /**
  * Run all test cases and return results.
@@ -33,6 +36,16 @@ export async function evaluate<TInput, TOutput>(
   if (!executor) {
     throw new Error('executor is required');
   }
+
+  // Track timing for logs
+  const startTime = Date.now();
+
+  // Resolve log path if storeLogs is enabled
+  const logPath = config.storeLogs
+    ? typeof config.storeLogs === 'string'
+      ? config.storeLogs
+      : `./didactic-logs/eval_${Date.now()}_${crypto.randomUUID().slice(0, 8)}/rawData.json`
+    : undefined;
 
   // Execute a single test case
   const executeTestCase = async ({
@@ -195,7 +208,10 @@ export async function evaluate<TInput, TOutput>(
     0
   );
 
-  return {
+  const durationMs = Date.now() - startTime;
+  const logFolder = logPath ? path.dirname(logPath) : undefined;
+
+  const evalResult: EvalResult<TInput, TOutput> = {
     systemPrompt,
     testCases: results,
     passed,
@@ -206,7 +222,15 @@ export async function evaluate<TInput, TOutput>(
     accuracy,
     cost,
     comparatorCost,
+    ...(logFolder && { logFolder }),
   };
+
+  // Write logs if enabled
+  if (logPath) {
+    writeEvalLogs(logPath, evalResult, durationMs, config.perTestThreshold);
+  }
+
+  return evalResult;
 }
 
 /**
@@ -345,8 +369,14 @@ async function compareFields(opts: {
     for (const [field, expValue] of Object.entries(expected)) {
       const fieldPath = path ? `${path}.${field}` : field;
 
-      // Check if this field has nested comparators
+      // Check if this field has a comparator (direct or nested)
       const fieldConfig = comparators[field];
+
+      // Skip fields without any comparator defined
+      if (fieldConfig === undefined) {
+        continue;
+      }
+
       let fieldComparators: NestedComparatorConfig;
 
       if (

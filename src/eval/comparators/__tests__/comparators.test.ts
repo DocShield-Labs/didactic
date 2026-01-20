@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   within,
   oneOf,
@@ -9,7 +9,16 @@ import {
   numeric,
   date,
   name,
+  llmCompare,
+  unordered,
 } from '../comparators.js';
+import { LLMProviders } from '../../../types.js';
+
+// Mock callStructuredLLM for llmCompare tests
+const mockCallStructuredLLM = vi.fn();
+vi.mock('../../../library/llm/llm-client.js', () => ({
+  callStructuredLLM: (...args: unknown[]) => mockCallStructuredLLM(...args),
+}));
 
 describe('within', () => {
   it('percentage mode passes/fails based on tolerance', async () => {
@@ -52,7 +61,9 @@ describe('oneOf', () => {
 
   it('passes when values match, fails otherwise', async () => {
     expect((await comparator('a', 'a')).passed).toBe(true);
+    expect((await comparator('a', 'a')).similarity).toBe(1.0);
     expect((await comparator('a', 'b')).passed).toBe(false);
+    expect((await comparator('a', 'b')).similarity).toBe(0.0);
   });
 
   it('fails when value is not in allowed set', async () => {
@@ -70,8 +81,10 @@ describe('oneOf', () => {
 describe('presence', () => {
   it('passes for present values, fails for null/undefined/empty', async () => {
     expect(presence('expected', 'actual').passed).toBe(true);
+    expect(presence('expected', 'actual').similarity).toBe(1.0);
     expect(presence('expected', 0).passed).toBe(true);
     expect(presence('expected', null).passed).toBe(false);
+    expect(presence('expected', null).similarity).toBe(0.0);
     expect(presence('expected', undefined).passed).toBe(false);
     expect(presence('expected', '').passed).toBe(false);
   });
@@ -91,7 +104,9 @@ describe('custom', () => {
 describe('exact', () => {
   it('deep equals primitives, objects, and arrays', async () => {
     expect(exact(42, 42).passed).toBe(true);
+    expect(exact(42, 42).similarity).toBe(1.0);
     expect(exact(42, 43).passed).toBe(false);
+    expect(exact(42, 43).similarity).toBe(0.0);
     expect(exact({ a: 1 }, { a: 1 }).passed).toBe(true);
     expect(exact({ a: 1 }, { a: 2 }).passed).toBe(false);
     expect(exact([1, 2], [1, 2]).passed).toBe(true);
@@ -120,19 +135,21 @@ describe('exact', () => {
 describe('contains', () => {
   it('passes when actual contains substring', async () => {
     const comparator = contains('success');
-    expect((await comparator('ignored', 'operation success')).passed).toBe(
-      true
-    );
-    expect((await comparator('ignored', 'operation failed')).passed).toBe(
-      false
-    );
+    const passResult = await comparator('ignored', 'operation success');
+    expect(passResult.passed).toBe(true);
+    expect(passResult.similarity).toBe(1.0);
+    const failResult = await comparator('ignored', 'operation failed');
+    expect(failResult.passed).toBe(false);
+    expect(failResult.similarity).toBe(0.0);
   });
 });
 
 describe('numeric', () => {
   it('compares raw numbers', async () => {
     expect(numeric(100, 100).passed).toBe(true);
+    expect(numeric(100, 100).similarity).toBe(1.0);
     expect(numeric(100, 200).passed).toBe(false);
+    expect(numeric(100, 200).similarity).toBe(0.0);
   });
 
   it('strips currency symbols and commas', async () => {
@@ -356,6 +373,35 @@ describe('name', () => {
   });
 });
 
+describe('unordered', () => {
+  it('marks comparator with _unordered flag when given a function', () => {
+    const result = unordered(exact);
+    expect(result._unordered).toBe(true);
+    expect(result._nestedComparators).toBeUndefined();
+  });
+
+  it('attaches nested comparators when given an object config', () => {
+    const nestedConfig = { id: exact, name: exact };
+    const result = unordered(nestedConfig);
+    expect(result._unordered).toBe(true);
+    expect(result._nestedComparators).toEqual(nestedConfig);
+  });
+
+  it('preserves the original comparator function behavior', async () => {
+    const result = unordered(exact);
+    // The wrapped function should still work as a comparator
+    expect((await result(42, 42)).passed).toBe(true);
+    expect((await result(42, 43)).passed).toBe(false);
+  });
+
+  it('throws when base function is called with object config', () => {
+    const result = unordered({ id: exact });
+    expect(() => result(1, 1)).toThrow(
+      'unordered() base function should not be called when nested comparators exist'
+    );
+  });
+});
+
 describe('similarity scores', () => {
   it('date returns higher similarity for closer dates', async () => {
     const result1 = date('2024-01-15', '2024-01-16'); // 1 day diff
@@ -398,43 +444,10 @@ describe('similarity scores', () => {
     expect(result.similarity).toBeCloseTo(0.5, 1);
   });
 
-  it('exact returns 1.0 similarity on match, 0.0 on mismatch', async () => {
-    expect(exact('a', 'a').similarity).toBe(1.0);
-    expect(exact('a', 'b').similarity).toBe(0.0);
-    expect(exact(42, 42).similarity).toBe(1.0);
-    expect(exact(42, 43).similarity).toBe(0.0);
-  });
-
-  it('presence returns 1.0 similarity on pass, 0.0 on fail', async () => {
-    expect(presence('expected', 'actual').similarity).toBe(1.0);
-    expect(presence('expected', null).similarity).toBe(0.0);
-  });
-
-  it('oneOf returns 1.0 similarity on pass, 0.0 on fail', async () => {
-    const comparator = oneOf(['a', 'b', 'c']);
-    expect((await comparator('a', 'a')).similarity).toBe(1.0);
-    expect((await comparator('a', 'b')).similarity).toBe(0.0);
-  });
-
-  it('numeric returns 1.0 similarity on pass, 0.0 on fail', async () => {
-    expect(numeric(100, 100).similarity).toBe(1.0);
-    expect(numeric(100, 200).similarity).toBe(0.0);
-  });
-
   it('name returns 1.0 similarity on pass, actual similarity on fail', async () => {
     expect(name('John Doe', 'john doe').similarity).toBe(1.0);
     // Failures now return actual Levenshtein similarity instead of 0.0
     expect(name('John', 'Jane').similarity).toBe(0.25); // 3 char diffs in 4 char string
-  });
-
-  it('contains returns 1.0 similarity on pass, 0.0 on fail', async () => {
-    const comparator = contains('success');
-    expect((await comparator('ignored', 'operation success')).similarity).toBe(
-      1.0
-    );
-    expect((await comparator('ignored', 'operation failed')).similarity).toBe(
-      0.0
-    );
   });
 });
 
@@ -582,5 +595,143 @@ describe('edge cases', () => {
       // Empty string is contained in every string
       expect((await comparator('', 'any string')).passed).toBe(true);
     });
+  });
+});
+
+describe('llmCompare', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns passed when LLM says values match', async () => {
+    mockCallStructuredLLM.mockResolvedValue({
+      data: { passed: true, rationale: 'Values are semantically equivalent' },
+      cost: 0.001,
+      inputTokens: 100,
+      outputTokens: 50,
+    });
+
+    const comparator = llmCompare({ apiKey: 'test-key' });
+    const result = await comparator('hello', 'hi', { expectedParent: {}, actualParent: {} });
+
+    expect(result.passed).toBe(true);
+    expect(result.rationale).toBe('Values are semantically equivalent');
+    expect(result.cost).toBe(0.001);
+    expect(result.similarity).toBe(1.0);
+  });
+
+  it('returns failed when LLM says values differ', async () => {
+    mockCallStructuredLLM.mockResolvedValue({
+      data: { passed: false, rationale: 'Different meanings' },
+      cost: 0.001,
+      inputTokens: 100,
+      outputTokens: 50,
+    });
+
+    const comparator = llmCompare({ apiKey: 'test-key' });
+    const result = await comparator('hello', 'goodbye', { expectedParent: {}, actualParent: {} });
+
+    expect(result.passed).toBe(false);
+    expect(result.rationale).toBe('Different meanings');
+    expect(result.similarity).toBe(0.0);
+  });
+
+  it('handles LLM errors gracefully', async () => {
+    mockCallStructuredLLM.mockRejectedValue(new Error('API rate limit exceeded'));
+
+    const comparator = llmCompare({ apiKey: 'test-key' });
+    const result = await comparator('a', 'b', { expectedParent: {}, actualParent: {} });
+
+    expect(result.passed).toBe(false);
+    expect(result.rationale).toContain('LLM comparison failed');
+    expect(result.rationale).toContain('API rate limit exceeded');
+    expect(result.cost).toBe(0);
+    expect(result.similarity).toBe(0.0);
+  });
+
+  it('fails when no apiKey provided anywhere', async () => {
+    const comparator = llmCompare({});
+    const result = await comparator('a', 'b', { expectedParent: {}, actualParent: {} });
+
+    expect(result.passed).toBe(false);
+    expect(result.rationale).toContain('requires an apiKey');
+  });
+
+  it('uses apiKey from context when not in config', async () => {
+    mockCallStructuredLLM.mockResolvedValue({
+      data: { passed: true, rationale: 'Match' },
+      cost: 0.001,
+      inputTokens: 100,
+      outputTokens: 50,
+    });
+
+    const comparator = llmCompare({});
+    const result = await comparator('a', 'b', {
+      expectedParent: {},
+      actualParent: {},
+      llmConfig: { apiKey: 'context-key' },
+    });
+
+    expect(result.passed).toBe(true);
+    expect(mockCallStructuredLLM).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: 'context-key' })
+    );
+  });
+
+  it('uses provider from context when not in config', async () => {
+    mockCallStructuredLLM.mockResolvedValue({
+      data: { passed: true, rationale: 'Match' },
+      cost: 0.001,
+      inputTokens: 100,
+      outputTokens: 50,
+    });
+
+    const comparator = llmCompare({ apiKey: 'test-key' });
+    await comparator('a', 'b', {
+      expectedParent: {},
+      actualParent: {},
+      llmConfig: { apiKey: 'test-key', provider: LLMProviders.anthropic_claude_sonnet },
+    });
+
+    expect(mockCallStructuredLLM).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: LLMProviders.anthropic_claude_sonnet })
+    );
+  });
+
+  it('uses custom system prompt when provided', async () => {
+    mockCallStructuredLLM.mockResolvedValue({
+      data: { passed: true, rationale: 'Match' },
+      cost: 0.001,
+      inputTokens: 100,
+      outputTokens: 50,
+    });
+
+    const customPrompt = 'Compare these medical terms for equivalence';
+    const comparator = llmCompare({ apiKey: 'test-key', systemPrompt: customPrompt });
+    await comparator('aspirin', 'ASA', { expectedParent: {}, actualParent: {} });
+
+    expect(mockCallStructuredLLM).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({ role: 'system', content: customPrompt }),
+        ]),
+      })
+    );
+  });
+
+  it('defaults to haiku provider when none specified', async () => {
+    mockCallStructuredLLM.mockResolvedValue({
+      data: { passed: true, rationale: 'Match' },
+      cost: 0.001,
+      inputTokens: 100,
+      outputTokens: 50,
+    });
+
+    const comparator = llmCompare({ apiKey: 'test-key' });
+    await comparator('a', 'b', { expectedParent: {}, actualParent: {} });
+
+    expect(mockCallStructuredLLM).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: LLMProviders.anthropic_claude_haiku })
+    );
   });
 });
