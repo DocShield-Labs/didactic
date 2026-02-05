@@ -1,4 +1,36 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Mock the Anthropic SDK
+vi.mock('@anthropic-ai/sdk', () => {
+  return {
+    default: vi.fn().mockImplementation(() => ({
+      messages: {
+        stream: vi.fn().mockImplementation(() => ({
+          finalMessage: vi.fn().mockResolvedValue({
+            content: [{ type: 'text', text: 'mocked patch response' }],
+            usage: { input_tokens: 100, output_tokens: 50 },
+          }),
+        })),
+      },
+    })),
+  };
+});
+
+// Mock the OpenAI SDK
+vi.mock('openai', () => {
+  return {
+    default: vi.fn().mockImplementation(() => ({
+      chat: {
+        completions: {
+          create: vi.fn().mockResolvedValue({
+            choices: [{ message: { content: 'mocked patch response' } }],
+            usage: { prompt_tokens: 100, completion_tokens: 50 },
+          }),
+        },
+      },
+    })),
+  };
+});
 
 // Import everything from the package
 import {
@@ -20,24 +52,21 @@ import {
   mock,
   // Eval
   evaluate,
+  // Providers
+  LLMProviders,
 } from '../index.js';
 
-// Import types to verify they're exported
-import type {
-  Comparator,
-  ComparatorContext,
-  ComparatorResult as _ComparatorResult,
-  Executor,
-  ExecutorResult as _ExecutorResult,
-  TestCase,
-  EvalConfig as _EvalConfig,
-  EvalResult as _EvalResult,
-  OptimizeResult as _OptimizeResult,
-  EndpointConfig as _EndpointConfig,
-  FnConfig as _FnConfig,
-} from '../index.js';
 
 describe('index exports', () => {
+  // Suppress console logs during tests
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   describe('comparators', () => {
     it('exports within comparator', () => {
       expect(typeof within).toBe('function');
@@ -149,45 +178,41 @@ describe('index exports', () => {
     });
   });
 
-  describe('type exports', () => {
-    // These tests verify types are exported correctly at compile time
-    // The actual type checking happens during TypeScript compilation
-
-    it('allows creating typed comparators', async () => {
-      const myComparator: Comparator<number> = (expected, actual) => ({
-        passed: expected === actual,
-        similarity: expected === actual ? 1.0 : 0.0,
+  describe('optimize integration', () => {
+    it('didactic.eval routes to optimizer when optimize config provided', async () => {
+      const result = await didactic.eval({
+        executor: mock([{ value: 1 }]),
+        comparators: { value: exact },
+        testCases: [{ input: { id: 1 }, expected: { value: 1 } }],
+        optimize: {
+          systemPrompt: 'test',
+          targetSuccessRate: 1.0,
+          apiKey: 'test-key',
+          provider: LLMProviders.anthropic_claude_sonnet,
+        },
       });
-      expect((await myComparator(1, 1)).passed).toBe(true);
+      // OptimizeResult has success, finalPrompt, iterations
+      expect(result.success).toBe(true);
+      expect(result.finalPrompt).toBeDefined();
+      expect(result.iterations).toBeDefined();
     });
 
-    it('allows using ComparatorContext', async () => {
-      const contextAwareComparator: Comparator<number> = (
-        expected,
-        actual,
-        _context?: ComparatorContext
-      ) => {
-        // context is optional
-        return { passed: expected === actual };
-      };
-      expect((await contextAwareComparator(1, 1)).passed).toBe(true);
-    });
-
-    it('allows creating typed executors', () => {
-      const myExecutor: Executor<{ id: number }, { name: string }> = async (
-        input
-      ) => ({
-        output: { name: `User ${input.id}` },
-      });
-      expect(typeof myExecutor).toBe('function');
-    });
-
-    it('allows creating typed test cases', () => {
-      const testCase: TestCase<{ id: number }> = {
-        input: { id: 1 },
-        expected: { name: 'John' },
-      };
-      expect(testCase.input.id).toBe(1);
+    it('didactic.optimize calls optimizer directly', async () => {
+      const result = await didactic.optimize(
+        {
+          executor: mock([{ value: 1 }]),
+          comparators: { value: exact },
+          testCases: [{ input: { id: 1 }, expected: { value: 1 } }],
+        },
+        {
+          systemPrompt: 'test',
+          targetSuccessRate: 1.0,
+          apiKey: 'test-key',
+          provider: LLMProviders.anthropic_claude_sonnet,
+        }
+      );
+      expect(result.success).toBe(true);
+      expect(result.finalPrompt).toBeDefined();
     });
   });
 });

@@ -184,7 +184,7 @@ export async function optimize<TInput, TOutput>(
 
 
     // Check for regression
-    const regressed = i > 1 && result.successRate < bestSuccessRate;
+    const regressed = i > 1 && result.successRate <= bestSuccessRate;
     if (regressed) {
       logRegressionDetected(bestSuccessRate);
     }
@@ -196,6 +196,7 @@ export async function optimize<TInput, TOutput>(
     }
 
     // Target reached
+    // Success is determined by reaching targetSuccessRate, not zero failures.
     if (result.successRate >= config.targetSuccessRate) {
       logTargetReached(config.targetSuccessRate);
       recordIteration(
@@ -211,19 +212,6 @@ export async function optimize<TInput, TOutput>(
     }
 
     const failures = result.testCases.filter((tc) => !tc.passed);
-    if (failures.length === 0) {
-      recordIteration(
-        i,
-        currentPrompt,
-        result,
-        result.cost,
-        Date.now() - iterationStart,
-        iterInputTokens,
-        iterOutputTokens
-      );
-      return finalizeOptimization(true, currentPrompt);
-    }
-
     logTargetFailures(config.targetSuccessRate, failures.length);
 
     // Cost limit before patches

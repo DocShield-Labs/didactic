@@ -4,6 +4,9 @@ import { exact, within, unordered } from '../comparators/comparators.js';
 import { mock } from '../executors.js';
 import type { Executor } from '../../types.js';
 
+// Allow 20% timing tolerance for setTimeout imprecision
+const TIMING_TOLERANCE = 0.8;
+
 type Input = { id: number };
 type Output = { v: number };
 
@@ -17,6 +20,15 @@ describe('evaluate', () => {
           testCases: [],
         })
       ).rejects.toThrow('testCases array cannot be empty');
+    });
+
+    it('throws when executor is missing', async () => {
+      await expect(
+        evaluate({
+          executor: undefined as any,
+          testCases: [{ input: {}, expected: {} }],
+        })
+      ).rejects.toThrow('executor is required');
     });
   });
 
@@ -58,6 +70,16 @@ describe('evaluate', () => {
       expect(result.testCases[0].fields).toEqual({});
     });
 
+    it('defaults to exact comparator when comparators is undefined', async () => {
+      const result = await evaluate<Input, number>({
+        executor: async () => ({ output: 42 }),
+        comparators: undefined,
+        testCases: [{ input: { id: 1 }, expected: 42 }],
+      });
+      expect(result.testCases[0].passed).toBe(true);
+      expect(result.testCases[0].fields['']).toBeDefined();
+    });
+
     it('only compares fields with explicit comparators', async () => {
       const result = await evaluate<Input, { a: number; b: number }>({
         executor: async () => ({ output: { a: 1, b: 999 } }),
@@ -69,6 +91,60 @@ describe('evaluate', () => {
       expect(result.testCases[0].passed).toBe(true);
       expect(result.testCases[0].fields['a'].passed).toBe(true);
       expect(result.testCases[0].fields['b']).toBeUndefined();
+    });
+
+    it('skips fields without comparators even with type mismatch', async () => {
+      const result = await evaluate<
+        Input,
+        { a: number; b: string[] | null }
+      >({
+        executor: async () => ({ output: { a: 1, b: null } }),
+        comparators: { a: exact }, // No comparator for 'b'
+        testCases: [
+          {
+            input: { id: 1 },
+            expected: { a: 1, b: ['should', 'be', 'ignored'] },
+          },
+        ],
+      });
+
+      // 'b' should be skipped even though types don't match (array vs null)
+      expect(result.testCases[0].passed).toBe(true);
+      expect(result.testCases[0].fields['b']).toBeUndefined();
+    });
+
+    it('skips fields without comparators in unordered array items', async () => {
+      interface Item {
+        id: string;
+        extra_field: unknown;
+      }
+
+      const result = await evaluate<Input, Item[]>({
+        executor: async () => ({
+          output: [
+            { id: 'a', extra_field: null },
+            { id: 'b', extra_field: undefined },
+          ],
+        }),
+        comparators: unordered({ id: exact }), // No comparator for extra_field
+        testCases: [
+          {
+            input: { id: 1 },
+            expected: [
+              { id: 'a', extra_field: ['array', 'value'] },
+              { id: 'b', extra_field: { nested: 'object' } },
+            ],
+          },
+        ],
+      });
+
+      // extra_field should be skipped even with type mismatches
+      expect(result.testCases[0].passed).toBe(true);
+      // Only id fields should be compared
+      expect(result.testCases[0].fields['[0].id']).toBeDefined();
+      expect(result.testCases[0].fields['[1].id']).toBeDefined();
+      expect(result.testCases[0].fields['[0].extra_field']).toBeUndefined();
+      expect(result.testCases[0].fields['[1].extra_field']).toBeUndefined();
     });
 
     it('marks test case failed when any field fails', async () => {
@@ -251,6 +327,27 @@ describe('evaluate', () => {
       });
 
       expect(result.testCases[0].passed).toBe(false);
+    });
+
+    it('fails when expected is array but actual is not', async () => {
+      const result = await evaluate<Input, { items: unknown }>({
+        executor: async () => ({ output: { items: 'not-an-array' } }),
+        comparators: { items: { name: exact } },
+        testCases: [{ input: { id: 1 }, expected: { items: [{ name: 'a' }] } }],
+      });
+      expect(result.testCases[0].passed).toBe(false);
+      expect(result.testCases[0].fields['items'].passed).toBe(false);
+    });
+
+    it('returns empty results for empty expected array', async () => {
+      const result = await evaluate<Input, { items: unknown[] }>({
+        executor: async () => ({ output: { items: [] } }),
+        comparators: { items: { name: exact } },
+        testCases: [{ input: { id: 1 }, expected: { items: [] } }],
+      });
+      expect(result.testCases[0].passed).toBe(true);
+      // No fields compared for empty array
+      expect(result.testCases[0].fields['items']).toBeUndefined();
     });
 
     it('applies field comparators to array elements', async () => {
@@ -555,52 +652,16 @@ describe('evaluate', () => {
 
       expect(result.testCases[0].passed).toBe(true);
     });
-  });
 
-  describe('comparatorOverride mode', () => {
-    it('accepts a single comparator function for whole-object comparison', async () => {
-      const result = await evaluate<Input, { a: number; b: number }>({
-        executor: async () => ({ output: { a: 1, b: 2 } }),
-        comparatorOverride: exact,
-        testCases: [{ input: { id: 1 }, expected: { a: 1, b: 2 } }],
-      });
-
-      expect(result.testCases[0].passed).toBe(true);
-      expect(result.testCases[0].totalFields).toBe(1);
-      expect(result.testCases[0].fields['']).toBeDefined();
-      expect(result.testCases[0].fields[''].passed).toBe(true);
-    });
-
-    it('works with custom single comparator for arrays', async () => {
-      const result = await evaluate<Input, number[]>({
-        executor: async () => ({ output: [105, 210] }),
-        comparatorOverride: (expected, actual) => {
-          // Custom tolerance check for arrays (whole-object comparison)
-          if (!Array.isArray(expected) || !Array.isArray(actual))
-            return { passed: false };
-          if (expected.length !== actual.length) return { passed: false };
-          for (let i = 0; i < expected.length; i++) {
-            const diff = Math.abs(actual[i] - expected[i]) / expected[i];
-            if (diff > 0.1) return { passed: false };
-          }
-          return { passed: true };
-        },
-        testCases: [{ input: { id: 1 }, expected: [100, 200] }],
-      });
-
-      expect(result.testCases[0].passed).toBe(true);
-      expect(result.testCases[0].fields['']).toBeDefined();
-    });
-
-    it('works with primitives', async () => {
+    it('defaults to exact for root primitive when no comparator specified', async () => {
       const result = await evaluate<Input, number>({
         executor: async () => ({ output: 42 }),
-        comparatorOverride: exact,
+        comparators: {},
         testCases: [{ input: { id: 1 }, expected: 42 }],
       });
-
       expect(result.testCases[0].passed).toBe(true);
       expect(result.testCases[0].fields['']).toBeDefined();
+      expect(result.testCases[0].fields[''].passed).toBe(true);
     });
   });
 
@@ -726,6 +787,16 @@ describe('evaluate', () => {
       expect(result.testCases[0].fields).toHaveProperty('user.profile.bio');
     });
 
+    it('fails when expected is object but actual is not', async () => {
+      const result = await evaluate<Input, { data: unknown }>({
+        executor: async () => ({ output: { data: 'string-not-object' } }),
+        comparators: { data: { name: exact } },
+        testCases: [{ input: { id: 1 }, expected: { data: { name: 'test' } } }],
+      });
+      expect(result.testCases[0].passed).toBe(false);
+      expect(result.testCases[0].fields['data'].passed).toBe(false);
+    });
+
     it('uses bracket notation for array indices', async () => {
       type ArrayOutput = { items: { id: number }[] };
 
@@ -787,6 +858,25 @@ describe('evaluate', () => {
           passed: JSON.stringify(expected) === JSON.stringify(actual),
         }),
         testCases: [{ input: { id: 1 }, expected: [1, 2, 3] }],
+      });
+
+      expect(result.testCases[0].passed).toBe(true);
+    });
+
+    it('supports tolerance-based array comparison', async () => {
+      const result = await evaluate<Input, number[]>({
+        executor: async () => ({ output: [105, 210] }),
+        comparatorOverride: (expected, actual) => {
+          if (!Array.isArray(expected) || !Array.isArray(actual))
+            return { passed: false };
+          if (expected.length !== actual.length) return { passed: false };
+          for (let i = 0; i < expected.length; i++) {
+            const diff = Math.abs(actual[i] - expected[i]) / expected[i];
+            if (diff > 0.1) return { passed: false };
+          }
+          return { passed: true };
+        },
+        testCases: [{ input: { id: 1 }, expected: [100, 200] }],
       });
 
       expect(result.testCases[0].passed).toBe(true);
@@ -920,6 +1010,24 @@ describe('evaluate', () => {
       });
 
       expect(maxConcurrent).toBe(5);
+    });
+
+    it('pauses between batches when rateLimitPause is set', async () => {
+      const startTime = Date.now();
+      await evaluate<Input, Output>({
+        executor: async (input: { id: number }) => ({ output: { v: input.id } }),
+        comparators: { v: exact },
+        rateLimitBatch: 1,
+        rateLimitPause: 0.05, // 50ms pause
+        testCases: [
+          { input: { id: 1 }, expected: { v: 1 } },
+          { input: { id: 2 }, expected: { v: 2 } },
+        ],
+      });
+      const elapsed = Date.now() - startTime;
+      // Should have at least one 50ms pause between the two single-item batches
+      const expectedPause = 50; // ms
+      expect(elapsed).toBeGreaterThanOrEqual(expectedPause * TIMING_TOLERANCE);
     });
 
     it('does not pause after the last batch', async () => {
