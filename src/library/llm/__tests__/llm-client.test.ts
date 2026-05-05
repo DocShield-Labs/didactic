@@ -294,7 +294,7 @@ describe('callLLM', () => {
           apiKey: 'test-key',
           messages: [{ role: 'user', content: 'Hello' }],
         })
-      ).rejects.toThrow('claude-opus-4-5-20251101');
+      ).rejects.toThrow('claude-opus-4-7');
     });
   });
 
@@ -644,7 +644,7 @@ describe('callStructuredLLM', () => {
           messages: [{ role: 'user', content: 'Hello' }],
           schema: testSchema,
         })
-      ).rejects.toThrow('claude-opus-4-5-20251101');
+      ).rejects.toThrow('claude-opus-4-7');
     });
   });
 

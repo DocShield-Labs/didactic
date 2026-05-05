@@ -3,8 +3,8 @@ import type { ProviderSpec } from '../optimizer/types.js';
 
 export const PROVIDER_SPECS: Record<LLMProviders, ProviderSpec> = {
   [LLMProviders.anthropic_claude_opus]: {
-    model: 'claude-opus-4-5-20251101',
-    maxTokens: 64000,
+    model: 'claude-opus-4-7',
+    maxTokens: 128000,
     costPerMillionInput: 5.0,
     costPerMillionOutput: 25.0,
   },

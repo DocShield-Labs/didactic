@@ -541,7 +541,7 @@ import { LLMProviders } from '@docshield/didactic';
 
 | Value                                  | Description                                   |
 | -------------------------------------- | --------------------------------------------- |
-| `LLMProviders.anthropic_claude_opus`   | Claude Opus 4.5 — Most capable, highest cost  |
+| `LLMProviders.anthropic_claude_opus`   | Claude Opus 4.7 — Most capable, highest cost  |
 | `LLMProviders.anthropic_claude_sonnet` | Claude Sonnet 4.5 — Balanced performance/cost |
 | `LLMProviders.anthropic_claude_haiku`  | Claude Haiku 4.5 — Fastest, lowest cost       |
 | `LLMProviders.openai_gpt5`             | GPT-5.2 — OpenAI flagship                     |

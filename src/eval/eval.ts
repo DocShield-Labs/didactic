@@ -347,6 +347,12 @@ async function compareFields(opts: {
 
       // Check if this field has nested comparators
       const fieldConfig = comparators[field];
+
+      // Skip fields with no comparator (unless it's a plain object that
+      // might contain sub-fields with comparators)
+      if (!fieldConfig && !isObject(expValue)) {
+        continue;
+      }
       let fieldComparators: NestedComparatorConfig;
 
       if (

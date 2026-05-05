@@ -9,7 +9,7 @@ import type { OptimizeConfig } from './optimizer/types.js';
  * Used by both optimizer and LLM-based comparators.
  */
 export enum LLMProviders {
-  // Anthropic Claude 4.5
+  // Anthropic Claude
   anthropic_claude_opus = 'anthropic_claude_opus',
   anthropic_claude_sonnet = 'anthropic_claude_sonnet',
   anthropic_claude_haiku = 'anthropic_claude_haiku',
